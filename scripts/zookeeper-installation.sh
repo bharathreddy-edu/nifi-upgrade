@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#environment variables file
+# environment variables file
 source ../sourcefile/env_variables.properties
 
 # zookeeper installation check, if zookeeper is present it run process on 2181 by default
@@ -11,9 +11,16 @@ if [[ ! -z ${ZK_PID_EXIST} ]]; then
 else
     echo "Zookeeper is not installed on this node";
     ZK_INSTALLED=false;
+    exit 1;
 fi
 
 
+# perform  steps to upgrade zookeeper
+if [[ ${ZK_INSTALLED} ]]; then
+  # Backing up Zookeeper directory
+  echo "Backing up Zookeeper"
+
+fi
 
 
 

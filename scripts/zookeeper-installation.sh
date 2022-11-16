@@ -6,7 +6,7 @@ source ../sourcefile/env_variables.properties
 # Condition to check if zookeeper update is required or not
 if [[ ${ZK_UPDATE} ]]
 
-extractzkpid(){
+extractZK_pid(){
 # zookeeper installation check, if zookeeper is present it run process on 2181 by default
 ZK_PID_EXIST=`dzdo netstat -plten | grep ${ZK_PORT:=2181} | awk '{print $9}' | awk -F / '{print $1}'`
 if [[ ! -z ${ZK_PID_EXIST} ]];
@@ -21,7 +21,7 @@ fi
 }
 
 killZookeeper(){
-# perform  steps to upgrade zookeeper
+# perform  steps to make sure  zookeeper is stopped
 if [[ ${ZK_INSTALLED} ]];
     then
       # Kill the existing zookeeper
@@ -31,6 +31,7 @@ if [[ ${ZK_INSTALLED} ]];
     service zookeeper stop;
 fi
 }
+
 
 
 

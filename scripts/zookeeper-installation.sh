@@ -65,28 +65,103 @@ SERVICEDESCRIPTOR
 
 # Copying the zookeeper's tar.gz file from s3 to local
 s3Download(){
-aws s3 cp ${S3_DOWNLOAD_ABSPATH}/${ZKDownload_Filename}} ${BASE_ZOOKEEPER_HOMEPATH:=/opt/zookeeper}/
+aws s3 cp ${S3_DOWNLOAD_ABSPATH}/${ZKDownload_Filename} ${BASE_ZOOKEEPER_HOMEPATH:=/opt/zookeeper}/
 if [[ ${?} -ne 0 ]];
 then
   echo -e "AWS copy Failed, Please check and make sure you have permissions to copy. \n Server/Host should able to download it from the bucket you specified without keys"
+  exit 1;
 fi
 }
 
 # Upgrading the zookeeper to newer version
 zookeeper_Upgrade(){
+ls -lart ${BASE_ZOOKEEPER_HOMEPATH:=/opt/zookeeper}/${ZKDownload_Filename}
+if [[ ${?} -ne 0 ]];
+then
+  echo -e "File not available to extract"
+  exit 1;
+fi
+
+# extracting the tar.gz file
+tar -xvzf ${BASE_ZOOKEEPER_HOMEPATH:=/opt/zookeeper}/${ZKDownload_Filename};
+`ls -lart ${BASE_ZOOKEEPER_HOMEPATH:=/opt/zookeeper} | grep ^l | awk '{print $11}'`
+
+}
+
+# Printing Success Message
+successMSG(){
+  if [[ ${?} -eq 0 ]];
+  then
+    echo  "*********** Zookeeper Upgrade/installed done successfully and service is started ***********"
+    exit 0;
+  fi
+}
+
+# Installing Zookeeper on the node
+installzK(){
+# Creating nifi, zookeeper users and thier home dir's
+useradd -m zookeeper;
+
+# Creating group named "apache-admin" & Adding users to it
+groupadd apache-admin;
+usermod -a -G apache-admin zookeeper;
+
+# Creating zookeeper dir and nifi dir
+dzdo mkdir -p /opt/zookeeper;dzdo chown -R zookeeper:apache-admin /opt/zookeeper;
+
+#Creating Keytab Dir
+dzdo mkdir -p /etc/security/keytabs;
+dzdo chmod  755 /etc/security/keytab;
 
 
 }
 
+installjava(){
+  # copying java jars and certs.
+  mkdir -p /opt/java_jars;
+  aws s3 cp s3://dtv-bigdatadl-nifi-dev-int/NiFi_Backups/java_jars/ /opt/java_jars/ --recursive ;
+  chmod -R 775 /opt/java_jars;
+# Installing Java via local rpm
+yum localinstall /opt/java_jars/jdk-8u121-linux-x64.rpm;
+
+}
+
+
+check_awscli_Installation(){
+aws --version;
+ if [[ ${?} -eq 0 ]];
+  then
+    echo  "*********** AWS CLI is already installed, you are good to go. ***********"
+    exit 0;
+ else
+  mkdir -p /tmp/aws_cli_install;cd /tmp/aws_cli_install;
+  yum install python3 -y;
+  temp_Python_version=`python3 -V | awk '{print $2}' | cut -d "." -f  1,2`;
+  update-alternatives --install /usr/bin/python python /usr/bin/python${temp_Python_version} 1 ;
+  curl "https://s3.amazonaws.com/aws-cli/awscli-bundle.zip" -o "awscli-bundle.zip";
+  unzip /tmp/aws_cli_install/awscli-bundle.zip
+  dzdo ./awscli-bundle/install -i /usr/local/aws -b /usr/local/bin/aws
+
+      fi
+  
+
+  
+}
+
+
+
+
 
 ## Actual Process Starts here
-extractZK_pid;
-killZookeeper;
-s3Download;
-zookeeper_Upgrade;
-if [[ ${?} -eq 0 ]];
+if [[ ${upgradeZK} ]];
 then
-  echo  "*********** Zookeeper Upgrade done successfully and service is started"
+  extractZK_pid;
+  killZookeeper;
+  s3Download;
+  zookeeper_Upgrade;
+  successMSG;
+else
+   s3Download;
+   successMSG;
+   installzK;
 fi
-
-

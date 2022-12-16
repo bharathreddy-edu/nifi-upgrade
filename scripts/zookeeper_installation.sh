@@ -36,7 +36,7 @@ fi
 
 
 # Installing zookeeper as service. This function is copied/taken from apache nifi.sh file
-install() {
+zk_asService() {
     SVC_NAME=zookeeper
     # since systemd seems to honour /etc/init.d we don't still create native systemd services
     # yet...
@@ -51,20 +51,20 @@ install() {
 cat <<SERVICEDESCRIPTOR > ${SVC_FILE}
 #!/bin/sh
 
+# description: Apache Zookeeper ZooKeeper is a centralized service for maintaining configuration information, naming, providing distributed synchronization, and providing group services.
 #
-# description: Apache ZooKeeper is a centralized service for maintaining configuration information, naming, providing distributed synchronization, and providing group service .
 
 # Make use of the configured ZOOKEEPER_HOME directory and pass service requests to the zkServer.sh executable
 ZOOKEEPER_HOME=/opt/zookeeper/current_zookeeper
-bin_dir=\${ZOOKEEPER_HOME}/bin
-zookeeper_executable=\${bin_dir}/zkServer.sh
+bin_dir=${ZOOKEEPER_HOME}/bin
+zookeeper_executable=${bin_dir}/zkServer.sh
 
-\${zookeeper_executable} "\$@"
+${zookeeper_executable} "$@"
 SERVICEDESCRIPTOR
 }
 
 # Copying the zookeeper's tar.gz file from s3 to local
-s3Download(){
+zk_s3Download(){
 aws s3 cp ${S3_DOWNLOAD_ABSPATH}/${ZKDownload_Filename} ${BASE_ZOOKEEPER_HOMEPATH:=/opt/zookeeper}/
 if [[ ${?} -ne 0 ]];
 then
@@ -84,7 +84,11 @@ fi
 
 # extracting the tar.gz file
 tar -xvzf ${BASE_ZOOKEEPER_HOMEPATH:=/opt/zookeeper}/${ZKDownload_Filename};
-`ls -lart ${BASE_ZOOKEEPER_HOMEPATH:=/opt/zookeeper} | grep ^l | awk '{print $11}'`
+`ls -lart ${BASE_ZOOKEEPER_HOMEPATH:=/opt/zookeeper} | grep ^l | awk '{print $11}'`;
+
+#creating simlik to currently installed zookeeper
+dzdo ln -s "/opt/zookeeper/apache-zookeeper-3.8.0-bin" "/opt/zookeeper/current_zookeeper";
+dzdo chown zookeeper:apache-admin /opt/zookeeper/current_zookeeper
 
 }
 
@@ -98,7 +102,7 @@ successMSG(){
 }
 
 # Installing Zookeeper on the node
-installzK(){
+installZK(){
 # Creating nifi, zookeeper users and thier home dir's
 useradd -m zookeeper;
 
@@ -112,19 +116,8 @@ dzdo mkdir -p /opt/zookeeper;dzdo chown -R zookeeper:apache-admin /opt/zookeeper
 #Creating Keytab Dir
 dzdo mkdir -p /etc/security/keytabs;
 dzdo chmod  755 /etc/security/keytab;
-
-
 }
 
-installjava(){
-  # copying java jars and certs.
-  mkdir -p /opt/java_jars;
-  aws s3 cp s3://dtv-bigdatadl-nifi-dev-int/NiFi_Backups/java_jars/ /opt/java_jars/ --recursive ;
-  chmod -R 775 /opt/java_jars;
-# Installing Java via local rpm
-yum localinstall /opt/java_jars/jdk-8u121-linux-x64.rpm;
-
-}
 
 
 check_awscli_Installation(){
@@ -135,17 +128,14 @@ aws --version;
     exit 0;
  else
   mkdir -p /tmp/aws_cli_install;cd /tmp/aws_cli_install;
-  yum install python3 -y;
+  yum zk_asService python3 -y;
   temp_Python_version=`python3 -V | awk '{print $2}' | cut -d "." -f  1,2`;
   update-alternatives --install /usr/bin/python python /usr/bin/python${temp_Python_version} 1 ;
   curl "https://s3.amazonaws.com/aws-cli/awscli-bundle.zip" -o "awscli-bundle.zip";
   unzip /tmp/aws_cli_install/awscli-bundle.zip
   dzdo ./awscli-bundle/install -i /usr/local/aws -b /usr/local/bin/aws
 
-      fi
-  
-
-  
+  fi
 }
 
 
@@ -157,11 +147,13 @@ if [[ ${upgradeZK} ]];
 then
   extractZK_pid;
   killZookeeper;
-  s3Download;
+  zk_s3Download;
   zookeeper_Upgrade;
   successMSG;
 else
-   s3Download;
+   zk_s3Download;
+   installZK;
+
    successMSG;
-   installzK;
+   ;
 fi

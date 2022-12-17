@@ -82,12 +82,16 @@ then
   exit 1;
 fi
 
+
 # extracting the tar.gz file
 tar -xvzf ${BASE_ZOOKEEPER_HOMEPATH:=/opt/zookeeper}/${ZKDownload_Filename};
-`ls -lart ${BASE_ZOOKEEPER_HOMEPATH:=/opt/zookeeper} | grep ^l | awk '{print $11}'`;
+#`ls -lart ${BASE_ZOOKEEPER_HOMEPATH:=/opt/zookeeper} | grep ^l | awk '{print $11}'`;
 
-#creating simlik to currently installed zookeeper
-dzdo ln -s "/opt/zookeeper/apache-zookeeper-3.8.0-bin" "/opt/zookeeper/current_zookeeper";
+# extracting dir name from filename
+ZKDownload_Dirname=`echo ${ZKDownload_Filename} | cut -d '.' -f 1-3`
+
+#creating Symlink to currently installed zookeeper
+dzdo ln -s "/opt/zookeeper/${ZKDownload_Dirname}" "/opt/zookeeper/current_zookeeper";
 dzdo chown zookeeper:apache-admin /opt/zookeeper/current_zookeeper
 
 }

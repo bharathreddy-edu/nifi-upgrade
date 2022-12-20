@@ -49,3 +49,17 @@ createZKKeytabs(){
  dzdo chmod 740 /etc/security/ nkeytabs/zk.service.keytab;
  ll /etc/security/keytabs
 }
+
+awscliInstall(){
+  cd /tmp/;
+  dzdo mkdir -p /tmp/installation_stuff;
+  dzdo chmod -R 777 /tmp/installation_stuff;
+  dzdo curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip";
+  dzdo unzip awscliv2.zip;
+  dzdo chmod -R 777 /tmp/installation_stuff;
+  dzdo ./aws/install;
+}
+
+
+# installation starting point
+awscliInstall;

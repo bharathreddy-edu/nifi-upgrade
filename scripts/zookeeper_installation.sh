@@ -116,7 +116,8 @@ dzdo chown -R zookeeper:apache-admin /opt/zookeeper/current_zookeeper;
 success_failure_MSG(){
   dzdo  netstat -plten | grep  2181
   if [[ ${?} -eq 0 ]];
-  extractZK_pid;
+  then
+    extractZK_pid;
   else
       echo "Zookeeper might got Upgraded/installed, but there is trouble running the process";
       echo "Verify manually and  start the process."
@@ -236,5 +237,4 @@ else
    zk_asService;
    startZKService;
    success_failure_MSG;
-   ;
 fi

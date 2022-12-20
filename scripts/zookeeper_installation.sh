@@ -11,6 +11,7 @@ ZK_PID_EXIST=`dzdo netstat -plten | grep ${ZK_PORT:=2181} | awk '{print $9}' | a
 if [[ ! -z ${ZK_PID_EXIST} ]];
  then
     echo "Zookeeper is installed on this node";
+     echo " Process Id is : ${ZK_PID_EXIST} "
     ZK_INSTALLED=true;
 else
     echo "Zookeeper is not installed on this node";
@@ -65,7 +66,10 @@ SERVICEDESCRIPTOR
 
 # Copying the zookeeper's tar.gz file from s3 to local
 zk_s3Download(){
-aws s3 cp ${S3_DOWNLOAD_ABSPATH}/${ZKDownload_Filename} ${BASE_ZOOKEEPER_HOMEPATH:=/opt/zookeeper}/
+  # create dir if it dose not exits
+  dzdo mkdir -p /opt/zookeeper;
+  dzdo chown -R zookeeper:apache-admin /opt/zookeeper;
+  aws s3 cp ${S3_DOWNLOAD_ABSPATH}/${ZKDownload_Filename} ${BASE_ZOOKEEPER_HOMEPATH:=/opt/zookeeper}/;
 if [[ ${?} -ne 0 ]];
 then
   echo -e "AWS copy Failed, Please check and make sure you have permissions to copy. \n Server/Host should able to download it from the bucket you specified without keys"
@@ -84,30 +88,46 @@ fi
 
 
 # extracting the tar.gz file
+cd /opt/zookeeper/;
 tar -xvzf ${BASE_ZOOKEEPER_HOMEPATH:=/opt/zookeeper}/${ZKDownload_Filename};
 #`ls -lart ${BASE_ZOOKEEPER_HOMEPATH:=/opt/zookeeper} | grep ^l | awk '{print $11}'`;
 
 # extracting dir name from filename
-ZKDownload_Dirname=`echo ${ZKDownload_Filename} | cut -d '.' -f 1-3`
+ZKDownload_Dirname=`echo ${ZKDownload_Filename} | cut -d '.' -f 1-3`;
+
+#finding the current conf
+current_zkConfdir=`service zookeeper status 2>&1 | sed -n '2p'  | sed -n -e 's/^.*: //p' | sed s/"\/zoo.cfg"//`;
+
+#Copy conf from the previous version to new version.
+cd /opt/zookeeper/${ZKDownload_Dirname};
+dzdo mv /opt/zookeeper/${ZKDownload_Dirname}/conf /opt/zookeeper/${ZKDownload_Dirname}bkp_conf_`date '+%m-%d-%Y'`;
+dzdo cp ${current_zkConfdir} /opt/zookeeper/${ZKDownload_Dirname}/;
+dzdo chown -R zookeeper:apache-admin /opt/zookeeper;
+dzdo chmod -R 755 /opt/zookeeper;
 
 #creating Symlink to currently installed zookeeper
+unlink /opt/zookeeper/current_zookeeper;
 dzdo ln -s "/opt/zookeeper/${ZKDownload_Dirname}" "/opt/zookeeper/current_zookeeper";
-dzdo chown zookeeper:apache-admin /opt/zookeeper/current_zookeeper
+dzdo chown -R zookeeper:apache-admin /opt/zookeeper/current_zookeeper;
 
 }
 
 # Printing Success Message
-successMSG(){
+success_failure_MSG(){
+  dzdo  netstat -plten | grep  2181
   if [[ ${?} -eq 0 ]];
-  then
-    echo  "*********** Zookeeper Upgrade/installed done successfully and service is started ***********"
-    exit 0;
+  extractZK_pid;
+  else
+      echo "Zookeeper might got Upgraded/installed, but there is trouble running the process";
+      echo "Verify manually and  start the process."
+      exit 1;
   fi
+
 }
 
 # Installing Zookeeper on the node
-installZK(){
-# Creating nifi, zookeeper users and thier home dir's
+fresh_installZK(){
+# Creating  zookeeper users and their home dirs
 useradd -m zookeeper;
 
 # Creating group named "apache-admin" & Adding users to it
@@ -120,6 +140,59 @@ dzdo mkdir -p /opt/zookeeper;dzdo chown -R zookeeper:apache-admin /opt/zookeeper
 #Creating Keytab Dir
 dzdo mkdir -p /etc/security/keytabs;
 dzdo chmod  755 /etc/security/keytab;
+
+
+# Creating Data-dir for zookeeper
+dzdo mkdir -p /data/zk_d1/zookeeper;
+dzdo chown -R zookeeper:zookeeper /data/zk_d1;
+
+
+# Creating /var/run/zookeeper for zookeeper
+dzdo mkdir -p /var/run/zookeeper;
+dzdo chown -R zookeeper:apache-admin /var/run/zookeeper;
+dzdo mkdir -p /var/log/zookeeper;
+dzdo chown -R zookeeper:apache-admin /var/log/zookeeper;
+
+# Extracting zookeeper from tar file
+cd /opt/zookeeper/;
+tar -xvzf ${BASE_ZOOKEEPER_HOMEPATH:=/opt/zookeeper}/${ZKDownload_Filename};
+
+#copying conf from s3 to new path
+cd /opt/zookeeper/;
+dzdo mv /opt/zookeeper/${ZKDownload_Dirname}/conf /opt/zookeeper/${ZKDownload_Dirname}/bkpORG_conf_`date '+%m-%d-%Y'`;
+dzdo aws s3 cp ${S3_zkpath_working_ABSPATH}/conf /opt/zookeeper/${ZKDownload_Dirname}/ ;
+dzdo chown -R zookeeper:apache-admin /opt/zookeeper;
+dzdo chmod -R 755 /opt/zookeeper;
+
+# updating the files based on the server
+if [[ "$HOSTNAME" = "${new_zkServer1}" ]];
+  then
+    fntoedit=`grep -ir ${new_zkServer1} /opt/zookeeper/${ZKDownload_Dirname}/ | wc -l`;
+    echo " Number of files to edit : ${fntoedit} ";
+    nametoChange=${new_zkServer1};
+    oldname=${old_zkserver1};
+fi
+
+if [[ "$HOSTNAME" = "${new_zkServer2}" ]];
+  then
+    fntoedit=`grep -ir ${new_zkServer2} /opt/zookeeper/${ZKDownload_Dirname}/ | wc -l`;
+    echo " Number of files to edit : ${fntoedit} ";
+    nametoChange=${new_zkServer2};
+    oldname=${old_zkserver2};
+fi
+
+if [[ "$HOSTNAME" = "${new_zkServer3}" ]];
+  then
+    fntoedit=`grep -ir ${new_zkServer3} /opt/zookeeper/${ZKDownload_Dirname}/ | wc -l`;
+    echo " Number of files to edit : ${fntoedit} ";
+    nametoChange=${new_zkServer3};
+    oldname=${old_zkserver3};
+fi
+
+cd /opt/zookeeper/${ZKDownload_Dirname}/;
+dzdo find /tmp/test -type f -exec sed -i "s/${oldname}/${nametoChange}/g" {} \;
+
+
 }
 
 
@@ -142,7 +215,9 @@ aws --version;
   fi
 }
 
-
+startZKService(){
+dzdo service zookeeper start;
+}
 
 
 
@@ -153,11 +228,13 @@ then
   killZookeeper;
   zk_s3Download;
   zookeeper_Upgrade;
-  successMSG;
+  startZKService;
+  success_failure_MSG;
 else
    zk_s3Download;
-   installZK;
-
-   successMSG;
+   fresh_installZK;
+   zk_asService;
+   startZKService;
+   success_failure_MSG;
    ;
 fi

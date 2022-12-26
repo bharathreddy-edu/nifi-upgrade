@@ -3,11 +3,11 @@
 # environment variables file
 source ../sourcefile/env_variables.properties
 
-# The extractZK_pid function helps to check if zookeeper is running on this server
+# The extractZK_pid function********************* helps to check if zookeeper is running on this server
 # Further extract the pid of the zookeeper process
 extractZK_pid(){
 # zookeeper installation check, if zookeeper is present it run process on 2181 by default
-echo "Initiating extractZK_pid function";
+echo "*********************Initiating extractZK_pid function*********************";
 ZK_PID_EXIST=`dzdo netstat -plten | grep ${ZK_PORT:=2181} | awk '{print $9}' | awk -F / '{print $1}'`;
 if [[ ! -z ${ZK_PID_EXIST} ]];
  then
@@ -19,14 +19,14 @@ else
     ZK_INSTALLED=false;
     exit 1;
 fi
-echo "END of extractZK_pid function";
+echo "*********************END of extractZK_pid function*********************";
 }
 
 
-# This killZookeeper function is to kill zookeeper id if that didn't work we are use the
+# This killZookeeper function********************* is to kill zookeeper id if that didn't work we are use the
 # service command to stop
 killZookeeper(){
-  echo "Initiating killZookeeper function";
+  echo "*********************Initiating killZookeeper function*********************";
 # perform  steps to make sure  zookeeper is stopped
 if [[ ${ZK_INSTALLED} ]];
     then
@@ -36,13 +36,13 @@ if [[ ${ZK_INSTALLED} ]];
     then
     service zookeeper stop;
 fi
-echo "END of killZookeeper function";
+echo "*********************END of killZookeeper function*********************";
 }
 
 
-# Installing zookeeper as service. This function is copied/taken from apache nifi.sh file
+# Installing zookeeper as service. This function********************* is copied/taken from apache nifi.sh file
 zk_asService() {
-  echo "Initiating zk_asService function";
+  echo "*********************Initiating zk_asService function*********************";
     SVC_NAME=zookeeper
     # since systemd seems to honour /etc/init.d we don't still create native systemd services
     # yet...
@@ -68,12 +68,12 @@ zookeeper_executable=${bin_dir}/zkServer.sh
 ${zookeeper_executable} "$@"
 SERVICEDESCRIPTOR
 
-echo "END of zk_asService function";
+echo "*********************END of zk_asService function*********************";
 }
 
 # Copying the zookeeper's tar.gz file from s3 to local
 zk_s3Download(){
-   echo "Initiating zk_s3Download function";
+   echo "*********************Initiating zk_s3Download function*********************";
   # create dir if it dose not exits
   dzdo mkdir -p /opt/zookeeper;
   dzdo chown -R zookeeper:apache-admin /opt/zookeeper;
@@ -83,12 +83,12 @@ then
   echo -e "AWS copy Failed, Please check and make sure you have permissions to copy. \n Server/Host should able to download it from the bucket you specified without keys"
   exit 1;
 fi
-echo "END of zk_s3Download function";
+echo "*********************END of zk_s3Download function*********************";
 }
 
 # Upgrading the zookeeper to newer version
 zookeeper_Upgrade(){
-echo "Initiating zookeeper_Upgrade function";
+echo "*********************Initiating zookeeper_Upgrade function*********************";
 ls -lart ${BASE_ZOOKEEPER_HOMEPATH:=/opt/zookeeper}/${ZKDownload_Filename};
 if [[ ${?} -ne 0 ]];
 then
@@ -120,12 +120,12 @@ unlink /opt/zookeeper/current_zookeeper;
 dzdo ln -s "/opt/zookeeper/${ZKDownload_Dirname}" "/opt/zookeeper/current_zookeeper";
 dzdo chown -R zookeeper:apache-admin /opt/zookeeper/current_zookeeper;
 
-echo "END of zookeeper_Upgrade function";
+echo "*********************END of zookeeper_Upgrade function*********************";
 }
 
 # Printing Success Message
 success_failure_MSG(){
-  echo "Initiating success_failure_MSG function";
+  echo "*********************Initiating success_failure_MSG function*********************";
   dzdo  netstat -plten | grep  2181;
   if [[ ${?} -eq 0 ]];
   then
@@ -135,12 +135,12 @@ success_failure_MSG(){
       echo "Verify manually and  start the process."
       exit 1;
   fi
-echo "END of success_failure_MSG function";
+echo "*********************END of success_failure_MSG function*********************";
 }
 
 #user/group creation
 userCreation(){
-echo "Initiating userCreation function";
+echo "*********************Initiating userCreation function*********************";
   # Creating  zookeeper users and their home dirs
   useradd -m zookeeper;
 
@@ -150,7 +150,7 @@ echo "Initiating userCreation function";
 
   # Creating zookeeper dir and nifi dir
   dzdo mkdir -p /opt/zookeeper;dzdo chown -R zookeeper:apache-admin /opt/zookeeper;
-echo "END of userCreation function";
+echo "*********************END of userCreation function*********************";
 }
 
 
@@ -159,7 +159,7 @@ echo "END of userCreation function";
 
 # Installing Zookeeper on the node
 fresh_installZK(){
-echo "Initiating fresh_installZK function";
+echo "*********************Initiating fresh_installZK function*********************";
 #Creating Keytab Dir
 dzdo mkdir -p /etc/security/keytabs;
 dzdo chmod  755 /etc/security/keytab;
@@ -215,13 +215,13 @@ fi
 cd /opt/zookeeper/${ZKDownload_Dirname}/;
 dzdo find /tmp/test -type f -exec sed -i "s/${oldname}/${nametoChange}/g" {} \;
 
-echo "END of fresh_installZK function";
+echo "*********************END of fresh_installZK function*********************";
 }
 
 
 
 check_awscli_Installation(){
-echo "Initiating check_awscli_Installation function";
+echo "*********************Initiating check_awscli_Installation function*********************";
 dzdo aws --version;
  if [[ ${?} -eq 0 ]];
   then
@@ -231,7 +231,7 @@ dzdo aws --version;
   echo "Please install AWS CLI First";
   exit 1;
   fi
-  echo "END of check_awscli_Installation function";
+  echo "*********************END of check_awscli_Installation function*********************";
 }
 
 # Starting Zk Service
@@ -241,7 +241,7 @@ dzdo service zookeeper start;
 
 # Stoping Zk Service
 stopZKService(){
-  echo "Initiating stopZKService function";
+  echo "*********************Initiating stopZKService function*********************";
 dzdo service zookeeper stop;
  if [[ ${?} -eq 0 ]];
   then
@@ -250,23 +250,31 @@ dzdo service zookeeper stop;
     extractZK_pid;
     killZookeeper;
  fi
- echo "END of stopZKService function";
+ echo "*********************END of stopZKService function*********************";
 }
 
+
+cleanup_forfreshInstall(){
+echo "*********************Initiating cleanup_forfreshInstall function*********************";
+dzdo mkdir /tmp/cleanup;
+dzdo chmod -R 777 /tmp/cleanup;
+dzdo /opt/z
+echo "*********************END of cleanup_forfreshInstall function*********************";
+}
 
 ## Actual Process Starts here
 if [[ ${upgradeZK} ]];
 then
-  echo "Upgrading zookeeper service based on the below parameter";
-  echo "ZK_UPDATE parameter is set to ${ZK_UPDATE}";
+  echo " #### @@@@ Upgrading zookeeper service based on the below parameter  #### @@@@ ";
+  echo "  #### @@@@ ZK_UPDATE parameter is set to ${ZK_UPDATE}  #### @@@@ ";
   stopZKService;
   zk_s3Download;
   zookeeper_Upgrade;
   startZKService;
   success_failure_MSG;
 else
-  echo "Installing zookeeper service based on the below parameter";
-  echo "ZK_UPDATE parameter is set to ${ZK_UPDATE}";
+  echo " #### @@@@ Installing zookeeper service based on the below parameter #### @@@@ ";
+  echo " #### @@@@ ZK_UPDATE parameter is set to ${ZK_UPDATE} #### @@@@ ";
    userCreation;
    zk_s3Download;
    fresh_installZK;

@@ -52,12 +52,17 @@ createZKKeytabs(){
 
 awscliInstall(){
   cd /tmp/;
-  dzdo mkdir -p /tmp/installation_stuff;
-  dzdo chmod -R 777 /tmp/installation_stuff;
+  dzdo mkdir -p /tmp/installation_stuff/aws_temp;
+  dzdo chmod -R 777 /tmp/installation_stuff/aws_temp;
   dzdo curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip";
+  dzdo cd /tmp/installation_stuff/aws_temp;
   dzdo unzip awscliv2.zip;
-  dzdo chmod -R 777 /tmp/installation_stuff;
-  dzdo ./aws/install;
+  dzdo chmod -R 777 /tmp/installation_stuff/aws_temp;
+  dzdo /tmp/installation_stuff/aws_temp/aws/install -i /usr/local/aws -b /usr/local/bin;
+  dzdo chmod -R 775 /usr/local/aws;
+  echo " **************** AWS CLI VERSION INFORMATION ****************"
+  echo "`aws --version`"
+  echo " **************************** END ****************************"
 }
 
 

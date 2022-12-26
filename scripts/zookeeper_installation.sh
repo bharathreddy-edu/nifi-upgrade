@@ -126,17 +126,27 @@ success_failure_MSG(){
 
 }
 
+#user/group creation
+userCreation(){
+
+  # Creating  zookeeper users and their home dirs
+  useradd -m zookeeper;
+
+  # Creating group named "apache-admin" & Adding users to it
+  groupadd apache-admin;
+  usermod -a -G apache-admin zookeeper;
+
+  # Creating zookeeper dir and nifi dir
+  dzdo mkdir -p /opt/zookeeper;dzdo chown -R zookeeper:apache-admin /opt/zookeeper;
+
+}
+
+
+
+
+
 # Installing Zookeeper on the node
 fresh_installZK(){
-# Creating  zookeeper users and their home dirs
-useradd -m zookeeper;
-
-# Creating group named "apache-admin" & Adding users to it
-groupadd apache-admin;
-usermod -a -G apache-admin zookeeper;
-
-# Creating zookeeper dir and nifi dir
-dzdo mkdir -p /opt/zookeeper;dzdo chown -R zookeeper:apache-admin /opt/zookeeper;
 
 #Creating Keytab Dir
 dzdo mkdir -p /etc/security/keytabs;
@@ -232,6 +242,7 @@ then
   startZKService;
   success_failure_MSG;
 else
+   userCreation;
    zk_s3Download;
    fresh_installZK;
    zk_asService;

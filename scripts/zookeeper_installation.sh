@@ -7,7 +7,8 @@ source ../sourcefile/env_variables.properties
 # Further extract the pid of the zookeeper process
 extractZK_pid(){
 # zookeeper installation check, if zookeeper is present it run process on 2181 by default
-ZK_PID_EXIST=`dzdo netstat -plten | grep ${ZK_PORT:=2181} | awk '{print $9}' | awk -F / '{print $1}'`
+echo "Initiating extractZK_pid function";
+ZK_PID_EXIST=`dzdo netstat -plten | grep ${ZK_PORT:=2181} | awk '{print $9}' | awk -F / '{print $1}'`;
 if [[ ! -z ${ZK_PID_EXIST} ]];
  then
     echo "Zookeeper is installed on this node";
@@ -18,12 +19,14 @@ else
     ZK_INSTALLED=false;
     exit 1;
 fi
+echo "END of extractZK_pid function";
 }
 
 
 # This killZookeeper function is to kill zookeeper id if that didn't work we are use the
 # service command to stop
 killZookeeper(){
+  echo "Initiating killZookeeper function";
 # perform  steps to make sure  zookeeper is stopped
 if [[ ${ZK_INSTALLED} ]];
     then
@@ -33,11 +36,13 @@ if [[ ${ZK_INSTALLED} ]];
     then
     service zookeeper stop;
 fi
+echo "END of killZookeeper function";
 }
 
 
 # Installing zookeeper as service. This function is copied/taken from apache nifi.sh file
 zk_asService() {
+  echo "Initiating zk_asService function";
     SVC_NAME=zookeeper
     # since systemd seems to honour /etc/init.d we don't still create native systemd services
     # yet...
@@ -62,10 +67,13 @@ zookeeper_executable=${bin_dir}/zkServer.sh
 
 ${zookeeper_executable} "$@"
 SERVICEDESCRIPTOR
+
+echo "END of zk_asService function";
 }
 
 # Copying the zookeeper's tar.gz file from s3 to local
 zk_s3Download(){
+   echo "Initiating zk_s3Download function";
   # create dir if it dose not exits
   dzdo mkdir -p /opt/zookeeper;
   dzdo chown -R zookeeper:apache-admin /opt/zookeeper;
@@ -75,11 +83,13 @@ then
   echo -e "AWS copy Failed, Please check and make sure you have permissions to copy. \n Server/Host should able to download it from the bucket you specified without keys"
   exit 1;
 fi
+echo "END of zk_s3Download function";
 }
 
 # Upgrading the zookeeper to newer version
 zookeeper_Upgrade(){
-ls -lart ${BASE_ZOOKEEPER_HOMEPATH:=/opt/zookeeper}/${ZKDownload_Filename}
+echo "Initiating zookeeper_Upgrade function";
+ls -lart ${BASE_ZOOKEEPER_HOMEPATH:=/opt/zookeeper}/${ZKDownload_Filename};
 if [[ ${?} -ne 0 ]];
 then
   echo -e "File not available to extract"
@@ -110,11 +120,13 @@ unlink /opt/zookeeper/current_zookeeper;
 dzdo ln -s "/opt/zookeeper/${ZKDownload_Dirname}" "/opt/zookeeper/current_zookeeper";
 dzdo chown -R zookeeper:apache-admin /opt/zookeeper/current_zookeeper;
 
+echo "END of zookeeper_Upgrade function";
 }
 
 # Printing Success Message
 success_failure_MSG(){
-  dzdo  netstat -plten | grep  2181
+  echo "Initiating success_failure_MSG function";
+  dzdo  netstat -plten | grep  2181;
   if [[ ${?} -eq 0 ]];
   then
     extractZK_pid;
@@ -123,12 +135,12 @@ success_failure_MSG(){
       echo "Verify manually and  start the process."
       exit 1;
   fi
-
+echo "END of success_failure_MSG function";
 }
 
 #user/group creation
 userCreation(){
-
+echo "Initiating userCreation function";
   # Creating  zookeeper users and their home dirs
   useradd -m zookeeper;
 
@@ -138,7 +150,7 @@ userCreation(){
 
   # Creating zookeeper dir and nifi dir
   dzdo mkdir -p /opt/zookeeper;dzdo chown -R zookeeper:apache-admin /opt/zookeeper;
-
+echo "END of userCreation function";
 }
 
 
@@ -147,7 +159,7 @@ userCreation(){
 
 # Installing Zookeeper on the node
 fresh_installZK(){
-
+echo "Initiating fresh_installZK function";
 #Creating Keytab Dir
 dzdo mkdir -p /etc/security/keytabs;
 dzdo chmod  755 /etc/security/keytab;
@@ -203,45 +215,58 @@ fi
 cd /opt/zookeeper/${ZKDownload_Dirname}/;
 dzdo find /tmp/test -type f -exec sed -i "s/${oldname}/${nametoChange}/g" {} \;
 
-
+echo "END of fresh_installZK function";
 }
 
 
 
 check_awscli_Installation(){
-aws --version;
+echo "Initiating check_awscli_Installation function";
+dzdo aws --version;
  if [[ ${?} -eq 0 ]];
   then
     echo  "*********** AWS CLI is already installed, you are good to go. ***********"
     exit 0;
  else
-  mkdir -p /tmp/aws_cli_install;cd /tmp/aws_cli_install;
-  yum zk_asService python3 -y;
-  temp_Python_version=`python3 -V | awk '{print $2}' | cut -d "." -f  1,2`;
-  update-alternatives --install /usr/bin/python python /usr/bin/python${temp_Python_version} 1 ;
-  curl "https://s3.amazonaws.com/aws-cli/awscli-bundle.zip" -o "awscli-bundle.zip";
-  unzip /tmp/aws_cli_install/awscli-bundle.zip
-  dzdo ./awscli-bundle/install -i /usr/local/aws -b /usr/local/bin/aws
-
+  echo "Please install AWS CLI First";
+  exit 1;
   fi
+  echo "END of check_awscli_Installation function";
 }
 
+# Starting Zk Service
 startZKService(){
 dzdo service zookeeper start;
 }
 
+# Stoping Zk Service
+stopZKService(){
+  echo "Initiating stopZKService function";
+dzdo service zookeeper stop;
+ if [[ ${?} -eq 0 ]];
+  then
+    echo "zookeeper is stopped";
+ else
+    extractZK_pid;
+    killZookeeper;
+ fi
+ echo "END of stopZKService function";
+}
 
 
 ## Actual Process Starts here
 if [[ ${upgradeZK} ]];
 then
-  extractZK_pid;
-  killZookeeper;
+  echo "Upgrading zookeeper service based on the below parameter";
+  echo "ZK_UPDATE parameter is set to ${ZK_UPDATE}";
+  stopZKService;
   zk_s3Download;
   zookeeper_Upgrade;
   startZKService;
   success_failure_MSG;
 else
+  echo "Installing zookeeper service based on the below parameter";
+  echo "ZK_UPDATE parameter is set to ${ZK_UPDATE}";
    userCreation;
    zk_s3Download;
    fresh_installZK;

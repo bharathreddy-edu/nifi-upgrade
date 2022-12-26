@@ -258,7 +258,8 @@ cleanup_forfreshInstall(){
 echo "*********************Initiating cleanup_forfreshInstall function*********************";
 dzdo mkdir /tmp/cleanup;
 dzdo chmod -R 777 /tmp/cleanup;
-dzdo /opt/z
+dzdo mv /opt/zookeeper/* /tmp/cleanup/bkp_zoo_`date '+%m-%d-%Y'`/;
+
 echo "*********************END of cleanup_forfreshInstall function*********************";
 }
 

@@ -276,6 +276,7 @@ then
 else
   echo " #### @@@@ Installing zookeeper service based on the below parameter #### @@@@ ";
   echo " #### @@@@ ZK_UPDATE parameter is set to ${ZK_UPDATE} #### @@@@ ";
+  cleanup_forfreshInstall;
    userCreation;
    zk_s3Download;
    fresh_installZK;

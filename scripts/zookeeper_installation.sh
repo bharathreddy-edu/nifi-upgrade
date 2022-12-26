@@ -176,13 +176,16 @@ dzdo chown -R zookeeper:apache-admin /var/run/zookeeper;
 dzdo mkdir -p /var/log/zookeeper;
 dzdo chown -R zookeeper:apache-admin /var/log/zookeeper;
 
+# extracting dir name from filename
+ZKDownload_Dirname=`echo ${ZKDownload_Filename} | cut -d '.' -f 1-3`;
+
 # Extracting zookeeper from tar file
 cd /opt/zookeeper/;
 tar -xvzf ${BASE_ZOOKEEPER_HOMEPATH:=/opt/zookeeper}/${ZKDownload_Filename};
 
 #copying conf from s3 to new path
 cd /opt/zookeeper/;
-dzdo mv /opt/zookeeper/${ZKDownload_Dirname}/conf /opt/zookeeper/${ZKDownload_Dirname}/bkpORG_conf_`date '+%m-%d-%Y'`;
+dzdo mv /opt/zookeeper/${ZKDownload_Dirname}/conf /opt/zookeeper/${ZKDownload_Dirname}/bkpORG_conf_`date '+%m-%d-%Y_%N'`;
 dzdo aws s3 cp ${S3_zkpath_working_ABSPATH}/conf /opt/zookeeper/${ZKDownload_Dirname}/ ;
 dzdo chown -R zookeeper:apache-admin /opt/zookeeper;
 dzdo chmod -R 755 /opt/zookeeper;
@@ -256,9 +259,11 @@ dzdo service zookeeper stop;
 
 cleanup_forfreshInstall(){
 echo "*********************Initiating cleanup_forfreshInstall function*********************";
-dzdo mkdir /tmp/cleanup;
+temp_cdir=bkp_zoo_`date '+%m-%d-%Y'`;
+dzdo mkdir -p /tmp/cleanup/${temp_cdir};
 dzdo chmod -R 777 /tmp/cleanup;
-dzdo mv /opt/zookeeper/* /tmp/cleanup/bkp_zoo_`date '+%m-%d-%Y'`/;
+dzdo mv /opt/zookeeper /tmp/cleanup/${temp_cdir}/;
+unset temp_cdir;
 
 echo "*********************END of cleanup_forfreshInstall function*********************";
 }

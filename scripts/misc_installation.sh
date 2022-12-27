@@ -7,21 +7,26 @@ check_java()
 #installing Java
 installJava(){
   # copying java jars and certs.
-  mkdir -p /opt/java_jars;
-  aws s3 cp s3://dtv-bigdatadl-nifi-dev-int/NiFi_Backups/java_jars/ /opt/java_jars/ --recursive ;
-  chmod -R 775 /opt/java_jars;
-# Installing Java via local rpm
-yum localinstall /opt/java_jars/jdk-8u121-linux-x64.rpm -y;
+  dzdo mkdir -p /opt/java_jars;
+  dzdo chmod -R 775 /opt/java_jars;
+  dzdo aws s3 cp s3://dtv-bigdatadl-nifi-dev-int/NiFi_Backups/java_jars/ /opt/java_jars/ --recursive ;
+  dzdo chmod -R 775 /opt/java_jars;
+  # Installing Java via local rpm
+  dzdo yum localinstall /opt/java_jars/jdk-8u121-linux-x64.rpm -y;
 
 }
 
 addCACerts(){
-  #Adding CA CERTS to Keystore
-
-#download ca_certs from s3 to local
+ #download ca_certs from s3 to local
 dzdo mdkir -p /opt/ca_certs;
-aws s3 cp ${s3_ca_certs_path}/ /opt/ca_certs/ --recursive;
+dzdo chmod -R 775 /opt/ca_certs;
+dzdo aws s3 cp ${s3_ca_certs_path}/ /opt/ca_certs/ --recursive;
+dzdo chmod -R 775 /opt/ca_certs;
 
+# Coping certs to java path
+dzdo cp /opt/ca_certs/* /usr/java/jdk1.8.0_121/jre/lib/security/ ;
+
+ #Adding CA CERTS to Keystore
 cd /usr/java/jdk1.8.0_121/jre/lib/security/;
 dzdo /usr/java/jdk1.8.0_121/bin/keytool -import -trustcacerts -keystore cacerts -storepass changeit  -noprompt -alias ATT_Entertainment_Technology_and_Operations_Intermediate_CA -file ATT_Entertainment_Technology_and_Operations_Intermediate_CA.cer
 dzdo /usr/java/jdk1.8.0_121/bin/keytool -import -trustcacerts -keystore cacerts -storepass changeit  -noprompt -alias ATT_Mobility_and_Entertainment_Technology_and_Operations_Root_CA  -file ATT_Mobility_and_Entertainment_Technology_and_Operations_Root_CA.cer
@@ -37,14 +42,15 @@ dzdo /usr/java/jdk1.8.0_121/bin/keytool -import -trustcacerts -keystore cacerts 
 }
 
 addJcepolicy(){
-   Install JCE Unlimited Strength Policy
-  unzip /opt/java_jars/jce_policy-8.zip "*.jar" -d /tmp
-  ll /usr/java/jdk1.8.0_121/jre/lib/security/*policy.jar
+   # Install JCE Unlimited Strength Policy
+  dzdo unzip /opt/java_jars/jce_policy-8.zip "*.jar" -d /tmp ;
+  dzdo ls -l /usr/java/jdk1.8.0_121/jre/lib/security/*policy.jar ;
   # if anything exits run below command if not skip it.
-  rm -f /usr/java/jdk1.8.0_121/jre/lib/security/*policy.jar
-  cp --preserve=timestamps /tmp/UnlimitedJCEPolicyJDK8/*policy.jar  /usr/java/jdk1.8.0_121/jre/lib/security/
-  chmod 644 /usr/java/jdk1.8.0_121/jre/lib/security/*policy.jar
-  ll  /usr/java/jdk1.8.0_121/jre/lib/security/*policy.jar
+  dzdo rm -f /usr/java/jdk1.8.0_121/jre/lib/security/*policy.jar ;
+  dzdo chmod -R 777 /tmp/UnlimitedJCEPolicyJDK8;
+  dzdo cp --preserve=timestamps /tmp/UnlimitedJCEPolicyJDK8/*policy.jar  /usr/java/jdk1.8.0_121/jre/lib/security/ ;
+  dzdo chmod 644 /usr/java/jdk1.8.0_121/jre/lib/security/*policy.jar ;
+  dzdo ls -l  /usr/java/jdk1.8.0_121/jre/lib/security/*policy.jar ;
 }
 
 createZKKeytabs(){

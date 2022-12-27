@@ -65,7 +65,7 @@ ZOOKEEPER_HOME=/opt/zookeeper/current_zookeeper
 bin_dir=${ZOOKEEPER_HOME}/bin
 zookeeper_executable=${bin_dir}/zkServer.sh
 
-${zookeeper_executable} "$@"
+\${zookeeper_executable} "\$@"
 SERVICEDESCRIPTOR
 dzdo chmod 755 ${SVC_FILE};
 echo "*********************END of zk_asService function*********************";

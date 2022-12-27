@@ -53,6 +53,11 @@ zk_asService() {
         exit 1
     fi
 
+
+#removing existing file in init.d
+echo "dzdo rm  -f  ${SVC_FILE}";
+dzdo rm  -f  ${SVC_FILE};
+
 # Create the init script, overwriting anything currently present
 dzdo cat <<SERVICEDESCRIPTOR > ${SVC_FILE}
 #!/bin/sh
@@ -62,8 +67,8 @@ dzdo cat <<SERVICEDESCRIPTOR > ${SVC_FILE}
 
 # Make use of the configured ZOOKEEPER_HOME directory and pass service requests to the zkServer.sh executable
 ZOOKEEPER_HOME=/opt/zookeeper/current_zookeeper
-bin_dir=${ZOOKEEPER_HOME}/bin
-zookeeper_executable=${bin_dir}/zkServer.sh
+bin_dir=\${ZOOKEEPER_HOME}/bin
+zookeeper_executable=\${bin_dir}/zkServer.sh
 
 \${zookeeper_executable} "\$@"
 SERVICEDESCRIPTOR

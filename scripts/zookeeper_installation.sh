@@ -221,8 +221,10 @@ if [[ "$HOSTNAME" = "${new_zkServer3}" ]];
     oldname=${old_zkserver3};
 fi
 
+# changing dir
+echo "cd /opt/zookeeper/${ZKDownload_Dirname}/;"
 cd /opt/zookeeper/${ZKDownload_Dirname}/;
-echo" pwd : `pwd`";
+echo "current dir : `pwd`";
 echo "using find command and changing name";
 echo "find /tmp/test -type f -exec sed -i "s/${oldname}/${nametoChange}/g" {} \;";
 dzdo find /tmp/test -type f -exec sed -i "s/${oldname}/${nametoChange}/g" {} \;
@@ -272,7 +274,8 @@ temp_cdir=bkp_zoo_`date '+%m-%d-%Y'`;
 dzdo mkdir -p /tmp/cleanup/${temp_cdir};
 dzdo chmod -R 777 /tmp/cleanup;
 dzdo mv /opt/zookeeper /tmp/cleanup/${temp_cdir}/;
-unset temp_cdir;
+unset temp_cdir fntoedit ZK_PID_EXIST oldname nametoChange;
+
 
 echo "*********************END of cleanup_forfreshInstall function*********************";
 }

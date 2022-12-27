@@ -54,7 +54,7 @@ zk_asService() {
     fi
 
 # Create the init script, overwriting anything currently present
-cat <<SERVICEDESCRIPTOR > ${SVC_FILE}
+dzdo cat <<SERVICEDESCRIPTOR > ${SVC_FILE}
 #!/bin/sh
 
 # description: Apache Zookeeper ZooKeeper is a centralized service for maintaining configuration information, naming, providing distributed synchronization, and providing group services.
@@ -67,7 +67,7 @@ zookeeper_executable=${bin_dir}/zkServer.sh
 
 ${zookeeper_executable} "$@"
 SERVICEDESCRIPTOR
-
+dzdo chmod 755 ${SVC_FILE};
 echo "*********************END of zk_asService function*********************";
 }
 
@@ -117,7 +117,7 @@ dzdo chmod -R 755 /opt/zookeeper;
 
 #creating Symlink to currently installed zookeeper
 unlink /opt/zookeeper/current_zookeeper;
-dzdo ln -s "/opt/zookeeper/${ZKDownload_Dirname}" "/opt/zookeeper/current_zookeeper";
+dzdo ln -s /opt/zookeeper/${ZKDownload_Dirname} /opt/zookeeper/current_zookeeper;
 dzdo chown -R zookeeper:apache-admin /opt/zookeeper/current_zookeeper;
 
 echo "*********************END of zookeeper_Upgrade function*********************";
@@ -228,6 +228,12 @@ echo "current dir : `pwd`";
 echo "using grep command with xargs and sed to update string in a file";
 #dzdo find /opt/zookeeper/${ZKDownload_Dirname}/conf/ -type f -exec sed -i "s/${oldname}/${nametoChange}/g" {} \;
 dzdo grep -irl 'd010220017016.ds.dtveng.net' /opt/zookeeper/${ZKDownload_Dirname}/conf | xargs -I % sh -c " echo 'updating %' ; sed -i 's/${oldname}/${nametoChange}/g' %" ;
+
+
+#creating Symlink to currently installed zookeeperi
+unlink /opt/zookeeper/current_zookeeper;
+dzdo ln -s /opt/zookeeper/${ZKDownload_Dirname} /opt/zookeeper/current_zookeeper;
+dzdo chown -R zookeeper:apache-admin /opt/zookeeper/current_zookeeper;
 
 echo "*********************END of fresh_installZK function*********************";
 }

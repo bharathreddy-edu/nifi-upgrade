@@ -193,6 +193,8 @@ dzdo chmod -R 755 /opt/zookeeper;
 # updating the files based on the server
 if [[ "$HOSTNAME" = "${new_zkServer1}" ]];
   then
+    echo "using this command to find the files";
+    echo "grep -ir ${new_zkServer1} /opt/zookeeper/${ZKDownload_Dirname}/ | wc -l";
     fntoedit=`grep -ir ${new_zkServer1} /opt/zookeeper/${ZKDownload_Dirname}/ | wc -l`;
     echo " Number of files to edit : ${fntoedit} ";
     nametoChange=${new_zkServer1};
@@ -201,6 +203,8 @@ fi
 
 if [[ "$HOSTNAME" = "${new_zkServer2}" ]];
   then
+    echo "using this command to find the files";
+        echo "grep -ir ${new_zkServer1} /opt/zookeeper/${ZKDownload_Dirname}/ | wc -l";
     fntoedit=`grep -ir ${new_zkServer2} /opt/zookeeper/${ZKDownload_Dirname}/ | wc -l`;
     echo " Number of files to edit : ${fntoedit} ";
     nametoChange=${new_zkServer2};
@@ -209,6 +213,8 @@ fi
 
 if [[ "$HOSTNAME" = "${new_zkServer3}" ]];
   then
+    echo "using this command to find the files";
+    echo "grep -ir ${new_zkServer1} /opt/zookeeper/${ZKDownload_Dirname}/ | wc -l";
     fntoedit=`grep -ir ${new_zkServer3} /opt/zookeeper/${ZKDownload_Dirname}/ | wc -l`;
     echo " Number of files to edit : ${fntoedit} ";
     nametoChange=${new_zkServer3};

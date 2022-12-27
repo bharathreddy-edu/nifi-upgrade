@@ -186,7 +186,7 @@ tar -xvzf ${BASE_ZOOKEEPER_HOMEPATH:=/opt/zookeeper}/${ZKDownload_Filename};
 #copying conf from s3 to new path
 cd /opt/zookeeper/;
 dzdo mv /opt/zookeeper/${ZKDownload_Dirname}/conf /opt/zookeeper/${ZKDownload_Dirname}/bkpORG_conf_`date '+%m-%d-%Y_%N'`;
-dzdo aws s3 cp ${S3_zkpath_working_ABSPATH}/conf /opt/zookeeper/${ZKDownload_Dirname}/ ;
+dzdo aws s3 cp ${S3_zkpath_working_ABSPATH}/conf /opt/zookeeper/${ZKDownload_Dirname}/conf/--recursive ;
 dzdo chown -R zookeeper:apache-admin /opt/zookeeper;
 dzdo chmod -R 755 /opt/zookeeper;
 

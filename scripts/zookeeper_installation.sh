@@ -193,7 +193,7 @@ dzdo chmod -R 755 /opt/zookeeper;
 # updating the files based on the server
 if [[ "$HOSTNAME" = "${new_zkServer1}" ]];
   then
-    echo "using this command to find the files";
+    echo "using grep command to find the files";
     echo "grep -ir ${old_zkserver1} /opt/zookeeper/${ZKDownload_Dirname}/ | wc -l";
     fntoedit=`grep -ir ${old_zkserver1} /opt/zookeeper/${ZKDownload_Dirname}/ | wc -l`;
     echo " Number of files to edit : ${fntoedit} ";
@@ -203,7 +203,7 @@ fi
 
 if [[ "$HOSTNAME" = "${new_zkServer2}" ]];
   then
-    echo "using this command to find the files";
+    echo "using grep command to find the files";
         echo "grep -ir ${old_zkserver2} /opt/zookeeper/${ZKDownload_Dirname}/ | wc -l";
     fntoedit=`grep -ir ${old_zkserver2} /opt/zookeeper/${ZKDownload_Dirname}/ | wc -l`;
     echo " Number of files to edit : ${fntoedit} ";
@@ -213,7 +213,7 @@ fi
 
 if [[ "$HOSTNAME" = "${new_zkServer3}" ]];
   then
-    echo "using this command to find the files";
+    echo "using grep command to find the files";
     echo "grep -ir ${old_zkserver3} /opt/zookeeper/${ZKDownload_Dirname}/ | wc -l";
     fntoedit=`grep -ir ${old_zkserver3} /opt/zookeeper/${ZKDownload_Dirname}/ | wc -l`;
     echo " Number of files to edit : ${fntoedit} ";
@@ -221,13 +221,13 @@ if [[ "$HOSTNAME" = "${new_zkServer3}" ]];
     oldname=${old_zkserver3};
 fi
 
-# changing dir
-echo "cd /opt/zookeeper/${ZKDownload_Dirname}/;"
+# changing dir and running find command with sed
+echo "changing dir to /opt/zookeeper/${ZKDownload_Dirname}/";
 cd /opt/zookeeper/${ZKDownload_Dirname}/;
 echo "current dir : `pwd`";
-echo "using find command and changing name";
-echo "find /tmp/test -type f -exec sed -i "s/${oldname}/${nametoChange}/g" {} \;";
-dzdo find /tmp/test -type f -exec sed -i "s/${oldname}/${nametoChange}/g" {} \;
+echo "using grep command with xargs and changing name";
+#dzdo find /opt/zookeeper/${ZKDownload_Dirname}/conf/ -type f -exec sed -i "s/${oldname}/${nametoChange}/g" {} \;
+dzdo grep -irl 'd010220017016.ds.dtveng.net' /opt/zookeeper/${ZKDownload_Dirname}/conf | xargs -I % sh -c " echo 'updating %' ; sed -i 's/${oldname}/${nametoChange}/g' %" ;
 
 echo "*********************END of fresh_installZK function*********************";
 }

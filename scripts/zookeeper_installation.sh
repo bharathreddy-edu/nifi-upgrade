@@ -270,7 +270,7 @@ dzdo service zookeeper stop;
 
 cleanup_forfreshInstall(){
 echo "*********************Initiating cleanup_forfreshInstall function*********************";
-temp_cdir=bkp_zoo_`date '+%m-%d-%Y'`;
+temp_cdir=bkp_zoo_`date '+%m-%d-%Y_%N'`;
 dzdo mkdir -p /tmp/cleanup/${temp_cdir};
 dzdo chmod -R 777 /tmp/cleanup;
 dzdo mv /opt/zookeeper /tmp/cleanup/${temp_cdir}/;

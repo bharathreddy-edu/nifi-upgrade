@@ -222,6 +222,9 @@ if [[ "$HOSTNAME" = "${new_zkServer3}" ]];
 fi
 
 cd /opt/zookeeper/${ZKDownload_Dirname}/;
+echo" pwd : `pwd`";
+echo "using find command and changing name";
+echo "find /tmp/test -type f -exec sed -i "s/${oldname}/${nametoChange}/g" {} \;";
 dzdo find /tmp/test -type f -exec sed -i "s/${oldname}/${nametoChange}/g" {} \;
 
 echo "*********************END of fresh_installZK function*********************";

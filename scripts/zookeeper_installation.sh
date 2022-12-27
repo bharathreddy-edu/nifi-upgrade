@@ -225,7 +225,7 @@ fi
 echo "changing dir to /opt/zookeeper/${ZKDownload_Dirname}/";
 cd /opt/zookeeper/${ZKDownload_Dirname}/;
 echo "current dir : `pwd`";
-echo "using grep command with xargs and changing name";
+echo "using grep command with xargs and sed to update string in a file";
 #dzdo find /opt/zookeeper/${ZKDownload_Dirname}/conf/ -type f -exec sed -i "s/${oldname}/${nametoChange}/g" {} \;
 dzdo grep -irl 'd010220017016.ds.dtveng.net' /opt/zookeeper/${ZKDownload_Dirname}/conf | xargs -I % sh -c " echo 'updating %' ; sed -i 's/${oldname}/${nametoChange}/g' %" ;
 

@@ -11,19 +11,28 @@ installJava(){
   aws s3 cp s3://dtv-bigdatadl-nifi-dev-int/NiFi_Backups/java_jars/ /opt/java_jars/ --recursive ;
   chmod -R 775 /opt/java_jars;
 # Installing Java via local rpm
-yum localinstall /opt/java_jars/jdk-8u121-linux-x64.rpm;
+yum localinstall /opt/java_jars/jdk-8u121-linux-x64.rpm -y;
 
 }
 
 addCACerts(){
   #Adding CA CERTS to Keystore
-  cd /usr/java/jdk1.8.0_121/jre/lib/security/;
-  dzdo /usr/java/jdk1.8.0_121/bin/keytool -import -trustcacerts -keystore cacerts -storepass changeit  -noprompt -alias ATT_Entertainment_Technology_and_Operations_Intermediate_CA -file ATT_Entertainment_Technology_and_Operations_Intermediate_CA.cer;
-  dzdo /usr/java/jdk1.8.0_121/bin/keytool -import -trustcacerts -keystore cacerts -storepass changeit -noprompt -alias ATT_Mobility_and_Entertainment_Technology_and_Operations_Root_CA -file  ATT_Mobility_and_Entertainment_Technology_and_Operations_Root_CA.cer;
-  dzdo /usr/java/jdk1.8.0_121/bin/keytool -import -trustcacerts -keystore cacerts -storepass changeit -noprompt -alias DIRECTV_Classic_Issuing_CA -file DIRECTV_Classic_Issuing_CA.cer;
-  dzdo /usr/java/jdk1.8.0_121/bin/keytool -import -trustcacerts -keystore cacerts -storepass changeit -noprompt -alias DIRECTV_Engineering_DTVENG_Issuing_CA -file DIRECTV_Engineering_DTVENG_Issuing_CA.cer;
-  dzdo /usr/java/jdk1.8.0_121/bin/keytool -import -trustcacerts -keystore cacerts -storepass changeit -noprompt -alias DIRECTV_NextGen_Issuing_CA -file DIRECTV_NextGen_Issuing_CA.cer;
-  dzdo /usr/java/jdk1.8.0_121/bin/keytool -import -trustcacerts -keystore cacerts -storepass changeit -noprompt -alias DIRECTV_Operations_DTVOPS__Issuing_CA -file DIRECTV_Operations_DTVOPS__Issuing_CA.cer;
+
+#download ca_certs from s3 to local
+dzdo mdkir -p /opt/ca_certs;
+aws s3 cp ${s3_ca_certs_path}/ /opt/ca_certs/ --recursive;
+
+cd /usr/java/jdk1.8.0_121/jre/lib/security/;
+dzdo /usr/java/jdk1.8.0_121/bin/keytool -import -trustcacerts -keystore cacerts -storepass changeit  -noprompt -alias ATT_Entertainment_Technology_and_Operations_Intermediate_CA -file ATT_Entertainment_Technology_and_Operations_Intermediate_CA.cer
+dzdo /usr/java/jdk1.8.0_121/bin/keytool -import -trustcacerts -keystore cacerts -storepass changeit  -noprompt -alias ATT_Mobility_and_Entertainment_Technology_and_Operations_Root_CA  -file ATT_Mobility_and_Entertainment_Technology_and_Operations_Root_CA.cer
+dzdo /usr/java/jdk1.8.0_121/bin/keytool -import -trustcacerts -keystore cacerts -storepass changeit  -noprompt -alias DIRECTV_Classic_Issuing_CA -file DIRECTV_Classic_Issuing_CA.cer
+dzdo /usr/java/jdk1.8.0_121/bin/keytool -import -trustcacerts -keystore cacerts -storepass changeit  -noprompt -alias DIRECTV_Engineering_DTVENG_Issuing_CA -file DIRECTV_Engineering_DTVENG_Issuing_CA.cer
+dzdo /usr/java/jdk1.8.0_121/bin/keytool -import -trustcacerts -keystore cacerts -storepass changeit  -noprompt -alias DIRECTV_NextGen_Issuing_CA -file DIRECTV_NextGen_Issuing_CA.cer
+dzdo /usr/java/jdk1.8.0_121/bin/keytool -import -trustcacerts -keystore cacerts -storepass changeit  -noprompt -alias DIRECTV_Operations_DTVOPS__Issuing_CA -file DIRECTV_Operations_DTVOPS__Issuing_CA.cer
+dzdo /usr/java/jdk1.8.0_121/bin/keytool -import -trustcacerts -keystore cacerts -storepass changeit  -noprompt -alias DTV-Eng-Issuing-CA-01 -file DTV-Eng-Issuing-CA-01.cer
+dzdo /usr/java/jdk1.8.0_121/bin/keytool -import -trustcacerts -keystore cacerts -storepass changeit  -noprompt -alias DTV-Ops-Issuing-CA-01 -file DTV-Ops-Issuing-CA-01.cer
+dzdo /usr/java/jdk1.8.0_121/bin/keytool -import -trustcacerts -keystore cacerts -storepass changeit  -noprompt -alias DTV-Ops-Root-CA-01 -file DTV-Ops-Root-CA-01.cer
+
 
 }
 

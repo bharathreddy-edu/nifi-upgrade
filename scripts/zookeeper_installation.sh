@@ -194,8 +194,8 @@ dzdo chmod -R 755 /opt/zookeeper;
 if [[ "$HOSTNAME" = "${new_zkServer1}" ]];
   then
     echo "using this command to find the files";
-    echo "grep -ir ${new_zkServer1} /opt/zookeeper/${ZKDownload_Dirname}/ | wc -l";
-    fntoedit=`grep -ir ${new_zkServer1} /opt/zookeeper/${ZKDownload_Dirname}/ | wc -l`;
+    echo "grep -ir ${old_zkserver1} /opt/zookeeper/${ZKDownload_Dirname}/ | wc -l";
+    fntoedit=`grep -ir ${old_zkserver1} /opt/zookeeper/${ZKDownload_Dirname}/ | wc -l`;
     echo " Number of files to edit : ${fntoedit} ";
     nametoChange=${new_zkServer1};
     oldname=${old_zkserver1};
@@ -204,8 +204,8 @@ fi
 if [[ "$HOSTNAME" = "${new_zkServer2}" ]];
   then
     echo "using this command to find the files";
-        echo "grep -ir ${new_zkServer1} /opt/zookeeper/${ZKDownload_Dirname}/ | wc -l";
-    fntoedit=`grep -ir ${new_zkServer2} /opt/zookeeper/${ZKDownload_Dirname}/ | wc -l`;
+        echo "grep -ir ${old_zkserver2} /opt/zookeeper/${ZKDownload_Dirname}/ | wc -l";
+    fntoedit=`grep -ir ${old_zkserver2} /opt/zookeeper/${ZKDownload_Dirname}/ | wc -l`;
     echo " Number of files to edit : ${fntoedit} ";
     nametoChange=${new_zkServer2};
     oldname=${old_zkserver2};
@@ -214,8 +214,8 @@ fi
 if [[ "$HOSTNAME" = "${new_zkServer3}" ]];
   then
     echo "using this command to find the files";
-    echo "grep -ir ${new_zkServer1} /opt/zookeeper/${ZKDownload_Dirname}/ | wc -l";
-    fntoedit=`grep -ir ${new_zkServer3} /opt/zookeeper/${ZKDownload_Dirname}/ | wc -l`;
+    echo "grep -ir ${old_zkserver3} /opt/zookeeper/${ZKDownload_Dirname}/ | wc -l";
+    fntoedit=`grep -ir ${old_zkserver3} /opt/zookeeper/${ZKDownload_Dirname}/ | wc -l`;
     echo " Number of files to edit : ${fntoedit} ";
     nametoChange=${new_zkServer3};
     oldname=${old_zkserver3};

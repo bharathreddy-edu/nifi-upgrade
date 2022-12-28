@@ -1,7 +1,8 @@
 #!/bin/bash
 
-# environment variables file
+# environment variables file #properties_envDetails#
 source ../sourcefile/env_variables.properties
+
 
 # The extractZK_pid function********************* helps to check if zookeeper is running on this server
 # Further extract the pid of the zookeeper process
@@ -287,9 +288,23 @@ dzdo chmod -R 777 /tmp/cleanup;
 dzdo mv /opt/zookeeper /tmp/cleanup/${temp_cdir}/;
 unset temp_cdir fntoedit ZK_PID_EXIST oldname nametoChange;
 
-
 echo "*********************END of cleanup_forfreshInstall function*********************";
 }
+
+createZKKeytabs(){
+  #Creating Zookeeper Keytab
+
+  dzdo sh /opt/kerberos_Creationfiles/bias-create-svc-user.sh /etc/security/keytabs/zk.service.keytab 'zookeeper/${HOSTNAME}@DS.DTVENG.NET'
+  dzdo sh /opt/kerberos_Creationfiles/bias-create-svc-user.sh /etc/security/keytabs/spnego.service.keytab 'HTTP/${HOSTNAME}@DS.DTVENG.NET'
+
+# Permission for keytabs
+ dzdo chmod 744 /etc/security/keytabs/*;
+ dzdo chown -R  zookeeper:zookeeper /etc/security/keytabs/zk.service.keytab;
+ dzdo chmod 740 /etc/security/ nkeytabs/zk.service.keytab;
+ ll /etc/security/keytabs
+}
+
+
 
 ## Actual Process Starts here
 if [[ ${upgradeZK} ]];
@@ -309,6 +324,8 @@ else
    zk_s3Download;
    fresh_installZK;
    zk_asService;
+   createZKKeytabs;
    startZKService;
    success_failure_MSG;
+
 fi

@@ -1,30 +1,28 @@
-check_java()
-{
+#!/bin/bash
 
-}
-
+# environment variables file #properties_envDetails#
+source ../sourcefile/env_variables.properties
 
 #installing Java
 installJava(){
-  # copying java jars and certs.
+  # copying java jars and ca_certs.
   dzdo mkdir -p /opt/java_jars;
   dzdo chmod -R 775 /opt/java_jars;
-  dzdo aws s3 cp s3://dtv-bigdatadl-nifi-dev-int/NiFi_Backups/java_jars/ /opt/java_jars/ --recursive ;
+  dzdo aws s3 cp ${s3_java_jarPath}/ /opt/java_jars/ --recursive ;
   dzdo chmod -R 775 /opt/java_jars;
-  # Installing Java via local rpm
+
+  # Installing Java via local rpm using yum command
   dzdo yum localinstall /opt/java_jars/jdk-8u121-linux-x64.rpm -y;
 
+  echo "******************************************************************";
+  echo " Installed Java"
+  echo "`java -version`"
+  echo "******************************************************************";
 }
 
 addCACerts(){
- #download ca_certs from s3 to local
-dzdo mdkir -p /opt/ca_certs;
-dzdo chmod -R 775 /opt/ca_certs;
-dzdo aws s3 cp ${s3_ca_certs_path}/ /opt/ca_certs/ --recursive;
-dzdo chmod -R 775 /opt/ca_certs;
-
 # Coping certs to java path
-dzdo cp /opt/ca_certs/* /usr/java/jdk1.8.0_121/jre/lib/security/ ;
+dzdo cp /opt/java_jars/ca-certs_dtv/* /usr/java/jdk1.8.0_121/jre/lib/security/ ;
 
  #Adding CA CERTS to Keystore
 cd /usr/java/jdk1.8.0_121/jre/lib/security/;
@@ -37,8 +35,6 @@ dzdo /usr/java/jdk1.8.0_121/bin/keytool -import -trustcacerts -keystore cacerts 
 dzdo /usr/java/jdk1.8.0_121/bin/keytool -import -trustcacerts -keystore cacerts -storepass changeit  -noprompt -alias DTV-Eng-Issuing-CA-01 -file DTV-Eng-Issuing-CA-01.cer
 dzdo /usr/java/jdk1.8.0_121/bin/keytool -import -trustcacerts -keystore cacerts -storepass changeit  -noprompt -alias DTV-Ops-Issuing-CA-01 -file DTV-Ops-Issuing-CA-01.cer
 dzdo /usr/java/jdk1.8.0_121/bin/keytool -import -trustcacerts -keystore cacerts -storepass changeit  -noprompt -alias DTV-Ops-Root-CA-01 -file DTV-Ops-Root-CA-01.cer
-
-
 }
 
 addJcepolicy(){
@@ -53,25 +49,12 @@ addJcepolicy(){
   dzdo ls -l  /usr/java/jdk1.8.0_121/jre/lib/security/*policy.jar ;
 }
 
-createZKKeytabs(){
-  #Creating Zookeeper Keytab
-  dzdo sh /opt/nifi/nifi-admin/bias-create-svc-user.sh /etc/security/keytabs/zk.service.keytab 'zookeeper/d010220017016.ds.dtveng.net@DS.DTVENG.NET'
-  dzdo sh /opt/nifi/nifi-admin/bias-create-svc-user.sh /etc/security/keytabs/spnego.service.keytab 'HTTP/d010220017016.ds.dtveng.net@DS.DTVENG.NET'
-
-# Permission for keytabs
- dzdo chmod 744 /etc/security/keytabs/*;
- dzdo chown -R  zookeeper:zookeeper /etc/security/keytabs/zk.service.keytab;
- dzdo chmod 740 /etc/security/ nkeytabs/zk.service.keytab;
- ll /etc/security/keytabs
-}
-
 awscliInstall(){
-  cd /tmp/;
   dzdo mkdir -p /tmp/installation_stuff/aws_temp;
   dzdo chmod -R 777 /tmp/installation_stuff/aws_temp;
-  dzdo curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip";
   dzdo cd /tmp/installation_stuff/aws_temp;
-  dzdo unzip awscliv2.zip;
+  dzdo curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "/tmp/installation_stuff/aws_temp/awscliv2.zip";
+  dzdo unzip /tmp/installation_stuff/aws_temp/awscliv2.zip;
   dzdo chmod -R 777 /tmp/installation_stuff/aws_temp;
   dzdo /tmp/installation_stuff/aws_temp/aws/install -i /usr/local/aws -b /usr/local/bin;
   dzdo chmod -R 775 /usr/local/aws;
@@ -80,6 +63,37 @@ awscliInstall(){
   echo " **************************** END ****************************"
 }
 
+ad_kerberosfiles(){
+  # making sure we have kerberos libs
+  dzdo yum install krb5* -y;
 
-# installation starting point
+  # creating necessary directories
+  dzdo mkdir -p /etc/security/keytabs /opt/kerberos_Creationfiles;
+  dzdo chmod -R 755 /etc/security/keytabs;
+  dzdo chmod -R 755 /opt/kerberos_Creationfiles;
+
+  #download the files from s3 to local
+  dzdo aws s3 cp ${s3_kerberos_filePath}/  /opt/kerberos_Creationfiles/ --recursive ;
+  dzdo chmod -R 755 /opt/kerberos_Creationfiles/*;
+  dzdo echo "${svc_accName_withRelam}" > nifi.principal;
+  temp_svcname=`klist -kt nifi-admin.keytab | awk '{print $4}'| awk 'NF > 0'`;
+
+   #condition check to make sure the svc account used and the keytab has correct information
+   if [[ "$temp_svcname" != "$svc_accName_withRelam" ]];
+    then
+        echo "update the keytab in s3 location AND update it on the server";
+        exit 1;
+  fi
+}
+
+
+
+# Misc installation starting point
 awscliInstall;
+installJava;
+addCACerts;
+addJcepolicy;
+ad_kerberosfiles;
+
+
+

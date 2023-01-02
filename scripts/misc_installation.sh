@@ -53,10 +53,10 @@ awscliInstall(){
   dzdo mkdir -p /tmp/installation_stuff/aws_temp;
   dzdo chmod -R 777 /tmp/installation_stuff/aws_temp;
   dzdo cd /tmp/installation_stuff/aws_temp;
-  dzdo curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "/tmp/installation_stuff/aws_temp/awscliv2.zip";
-  dzdo unzip /tmp/installation_stuff/aws_temp/awscliv2.zip;
+  dzdo curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "/tmp/installation_stuff/aws_temp/awscliv2.zip" ;
+  dzdo unzip /tmp/installation_stuff/aws_temp/awscliv2.zip -d /tmp/installation_stuff/aws_temp/ ;
   dzdo chmod -R 777 /tmp/installation_stuff/aws_temp;
-  dzdo /tmp/installation_stuff/aws_temp/aws/install -i /usr/local/aws -b /usr/local/bin;
+  dzdo sh /tmp/installation_stuff/aws_temp/aws/install -i /usr/local/aws -b /usr/local/bin;
   dzdo chmod -R 775 /usr/local/aws;
   echo " **************** AWS CLI VERSION INFORMATION ****************"
   echo "`aws --version`"
@@ -73,16 +73,22 @@ ad_kerberosfiles(){
   dzdo chmod -R 755 /opt/kerberos_Creationfiles;
 
   #download the files from s3 to local
+  dzdo cd /opt/kerberos_Creationfiles/;
   dzdo aws s3 cp ${s3_kerberos_filePath}/  /opt/kerberos_Creationfiles/ --recursive ;
   dzdo chmod -R 755 /opt/kerberos_Creationfiles/*;
-  dzdo echo "${svc_accName_withRelam}" > nifi.principal;
-  temp_svcname=`klist -kt nifi-admin.keytab | awk '{print $4}'| awk 'NF > 0'`;
+  dzdo mv /opt/kerberos_Creationfiles/nifi-admin.keytab /etc/security/keytabs/;
+  dzdo mv /opt/kerberos_Creationfiles/nifi.principal /etc/security/keytabs/;
+
+  dzdo echo "${svc_accName_withRelam}" > /etc/security/keytabs/nifi.principal;
+  temp_svcname=`klist -kt /etc/security/keytabs/nifi-admin.keytab | awk '{print $4}'| awk 'NF > 0'`;
 
    #condition check to make sure the svc account used and the keytab has correct information
    if [[ "$temp_svcname" != "$svc_accName_withRelam" ]];
     then
         echo "update the keytab in s3 location AND update it on the server";
         exit 1;
+  else
+      echo "Keytab looks good and you are good to run bias commands to create keytabs";
   fi
 }
 

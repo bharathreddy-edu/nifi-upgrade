@@ -293,17 +293,16 @@ echo "*********************END of cleanup_forfreshInstall function**************
 
 createZKKeytabs(){
   #Creating Zookeeper Keytab
-
-  dzdo sh /opt/kerberos_Creationfiles/bias-create-svc-user.sh /etc/security/keytabs/zk.service.keytab 'zookeeper/${HOSTNAME}@DS.DTVENG.NET'
-  dzdo sh /opt/kerberos_Creationfiles/bias-create-svc-user.sh /etc/security/keytabs/spnego.service.keytab 'HTTP/${HOSTNAME}@DS.DTVENG.NET'
+  dzdo cd /opt/kerberos_Creationfiles;
+  (dzdo cd /opt/kerberos_Creationfiles ; dzdo sh /opt/kerberos_Creationfiles/bias-create-svc-user.sh /etc/security/keytabs/zk.service.keytab "zookeeper/${HOSTNAME}@DS.DTVENG.NET";)
+  (dzdo cd /opt/kerberos_Creationfiles ; dzdo sh /opt/kerberos_Creationfiles/bias-create-svc-user.sh /etc/security/keytabs/spnego.service.keytab "HTTP/${HOSTNAME}@DS.DTVENG.NET";)
 
 # Permission for keytabs
- dzdo chmod 744 /etc/security/keytabs/*;
- dzdo chown -R  zookeeper:zookeeper /etc/security/keytabs/zk.service.keytab;
- dzdo chmod 740 /etc/security/ nkeytabs/zk.service.keytab;
- ll /etc/security/keytabs
+ dzdo chmod -R 744 /etc/security/keytabs;
+ dzdo chown -R  zookeeper:apache-admin /etc/security/keytabs/zk.service.keytab;
+ dzdo chmod 740 /etc/security/keytabs/zk.service.keytab;
+ dzdo ls -lart /etc/security/keytabs;
 }
-
 
 
 ## Actual Process Starts here

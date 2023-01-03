@@ -104,8 +104,7 @@ fi
 
 
 # extracting the tar.gz file
-cd /opt/zookeeper/;
-tar -xvzf ${BASE_ZOOKEEPER_HOMEPATH:=/opt/zookeeper}/${ZKDownload_Filename};
+(cd /opt/zookeeper/; dzdo tar -xvzf ${BASE_ZOOKEEPER_HOMEPATH:=/opt/zookeeper}/${ZKDownload_Filename};)
 #`ls -lart ${BASE_ZOOKEEPER_HOMEPATH:=/opt/zookeeper} | grep ^l | awk '{print $11}'`;
 
 # extracting dir name from filename
@@ -186,8 +185,7 @@ dzdo chown -R zookeeper:apache-admin /var/log/zookeeper;
 ZKDownload_Dirname=`echo ${ZKDownload_Filename} | cut -d '.' -f 1-3`;
 
 # Extracting zookeeper from tar file
-cd /opt/zookeeper/;
-tar -xvzf ${BASE_ZOOKEEPER_HOMEPATH:=/opt/zookeeper}/${ZKDownload_Filename};
+(cd /opt/zookeeper/;dzdo tar -xvzf ${BASE_ZOOKEEPER_HOMEPATH:=/opt/zookeeper}/${ZKDownload_Filename};)
 
 #copying conf from s3 to new path
 cd /opt/zookeeper/;
@@ -229,8 +227,7 @@ fi
 
 # changing dir and running find command with sed
 echo "changing dir to /opt/zookeeper/${ZKDownload_Dirname}/";
-cd /opt/zookeeper/${ZKDownload_Dirname}/;
-echo "current dir : `pwd`";
+(cd /opt/zookeeper/${ZKDownload_Dirname}/;echo "current dir : `pwd`";)
 echo "using grep command with xargs and sed to update string in a file";
 #dzdo find /opt/zookeeper/${ZKDownload_Dirname}/conf/ -type f -exec sed -i "s/${oldname}/${nametoChange}/g" {} \;
 dzdo grep -irl 'd010220017016.ds.dtveng.net' /opt/zookeeper/${ZKDownload_Dirname}/conf | xargs -I % sh -c " echo 'updating %' ; sed -i 's/${oldname}/${nametoChange}/g' %" ;

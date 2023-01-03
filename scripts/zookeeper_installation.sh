@@ -306,25 +306,30 @@ createZKKeytabs(){
 if [[ ${installZK} ]];
 then
   echo "Doing a condition check for fresh install or upgrade";
-      if [[ ${upgradeZK} ]];
-      then
-          echo " #### @@@@ Upgrading zookeeper service based on the below parameter  #### @@@@ ";
-          echo "  #### @@@@ ZK_UPDATE parameter is set to ${ZK_UPDATE}  #### @@@@ ";
-          stopZKService;
-          zk_s3Download;
-          zookeeper_Upgrade;
-          startZKService;
-          success_failure_MSG;
-      else
-          echo " #### @@@@ Installing zookeeper service based on the below parameter #### @@@@ ";
-          echo " #### @@@@ ZK_UPDATE parameter is set to ${ZK_UPDATE} #### @@@@ ";
-          cleanup_forfreshInstall;
-          userCreation;
-          zk_s3Download;
-          fresh_installZK;
-          zk_asService;
-          createZKKeytabs;
-          startZKService;
-          success_failure_MSG;
-      fi
+      shopt -s nocasematch;
+      case ${upgradeZK} in
+          yes)
+              echo " #### @@@@ Upgrading zookeeper service based on the below parameter  #### @@@@ ";
+              echo "  #### @@@@ upgradeZK parameter is set to ${upgradeZK}  #### @@@@ ";
+              stopZKService;
+              zk_s3Download;
+              zookeeper_Upgrade;
+              startZKService;
+              success_failure_MSG;
+          ;;
+          no)
+              echo " #### @@@@ Installing zookeeper service based on the below parameter #### @@@@ ";
+              echo " #### @@@@ upgradeZK parameter is set to ${upgradeZK} #### @@@@ ";
+              cleanup_forfreshInstall;
+              userCreation;
+              zk_s3Download;
+              fresh_installZK;
+              zk_asService;
+              createZKKeytabs;
+              startZKService;
+              success_failure_MSG;
+          ;;
+          *)
+              echo " Invalid option, Please choose yes/no"
+      esac
 fi

@@ -4,9 +4,9 @@
 source ../sourcefile/env_variables.properties
 
 
-# The extractZK_pid function********************* helps to check if zookeeper is running on this server
+# The extractZK_pid function helps to check if zookeeper is running on this server
 # Further extract the pid of the zookeeper process
-extractZK_pid(){
+extractZKpid_killzkpid(){
 # zookeeper installation check, if zookeeper is present it run process on 2181 by default
 echo "*********************Initiating extractZK_pid function*********************";
 ZK_PID_EXIST=`dzdo netstat -plten | grep ${ZK_PORT:=2181} | awk '{print $9}' | awk -F / '{print $1}'`;
@@ -14,30 +14,19 @@ if [[ ! -z ${ZK_PID_EXIST} ]];
  then
     echo "Zookeeper is installed on this node";
      echo " Process Id is : ${ZK_PID_EXIST} "
-    ZK_INSTALLED=true;
+    ZK_INSTALLED=zk_installed;
 else
     echo "Zookeeper is not installed on this node";
-    ZK_INSTALLED=false;
+    ZK_INSTALLED=zk_notinstalled;
     exit 1;
 fi
-echo "*********************END of extractZK_pid function*********************";
-}
 
-
-# This killZookeeper function********************* is to kill zookeeper id if that didn't work we are use the
-# service command to stop
-killZookeeper(){
-  echo "*********************Initiating killZookeeper function*********************";
-# perform  steps to make sure  zookeeper is stopped
-if [[ ${ZK_INSTALLED} ]];
+if [[ ${zk_installed} = "zk_installed"]];
     then
       # Kill the existing zookeeper
       dzdo kill -9 ${ZK_PID_EXIST};
-    elif [[ ${?} -ne 0 ]];
-    then
-    service zookeeper stop;
 fi
-echo "*********************END of killZookeeper function*********************";
+echo "*********************END of extractZKpid_killzkpid function*********************";
 }
 
 
@@ -54,9 +43,8 @@ zk_asService() {
         exit 1
     fi
 
-
 #removing existing file in init.d
-echo "dzdo rm  -f  ${SVC_FILE}";
+echo "removing existing service file form /etc/init.d";
 dzdo rm  -f  ${SVC_FILE};
 
 # Create the init script, overwriting anything currently present
@@ -104,8 +92,8 @@ fi
 
 
 # extracting the tar.gz file
-(cd /opt/zookeeper/; dzdo tar -xvzf ${BASE_ZOOKEEPER_HOMEPATH:=/opt/zookeeper}/${ZKDownload_Filename};)
-#`ls -lart ${BASE_ZOOKEEPER_HOMEPATH:=/opt/zookeeper} | grep ^l | awk '{print $11}'`;
+echo "extracting tar file"
+(cd /opt/zookeeper/; dzdo tar -xvzf ${BASE_ZOOKEEPER_HOMEPATH:=/opt/zookeeper}/${ZKDownload_Filename} > /dev/null;  if [ ${?} -eq 0 ]; then echo successfully untar the file; else echo "unsuccessful to untar the file"; fi)
 
 # extracting dir name from filename
 ZKDownload_Dirname=`echo ${ZKDownload_Filename} | cut -d '.' -f 1-3`;
@@ -159,7 +147,33 @@ echo "*********************END of userCreation function*********************";
 }
 
 
+change_zkconf(){
+    echo "using for loop to update the config"
+     for line in `grep -ir 'server.[0-9]=' /opt/zookeeper/current_zookeeper/conf`;
+     do
+        echo "${line}" ;
+        fl_name_f1=`echo "${line}"  | cut -d: -f1 `;
+        serv_name_f2=`echo "${line}"  | cut -d: -f2`;
+        serv_name_info=`echo "${line}"  | cut -d: -f2 | cut -d= -f1`;
 
+        case ${serv_name_info} in
+        server.1)
+              echo "updating ${serv_name_info} info in ${fl_name_f1}" ;
+              sed -i "s/${serv_name_f2}/${serv_name_info}=${new_zkServer1}/g" ${fl_name_f1} ;
+        ;;
+        server.2)
+              echo "updating ${serv_name_info} info in ${fl_name_f1}" ;
+              sed -i "s/${serv_name_f2}/${serv_name_info}=${new_zkServer2}/g" ${fl_name_f1} ;
+        ;;
+        server.3)
+              echo "updating ${serv_name_info} info in ${fl_name_f1}" ;
+              sed -i "s/${serv_name_f2}/${serv_name_info}=${new_zkServer3}/g" ${fl_name_f1} ;
+        ;;
+        esac
+
+    done ;
+
+}
 
 
 # Installing Zookeeper on the node
@@ -194,43 +208,43 @@ dzdo aws s3 cp ${S3_zkpath_working_ABSPATH}/conf /opt/zookeeper/${ZKDownload_Dir
 dzdo chown -R zookeeper:apache-admin /opt/zookeeper;
 dzdo chmod -R 755 /opt/zookeeper;
 
-# updating the files based on the server
-if [[ "$HOSTNAME" = "${new_zkServer1}" ]];
-  then
-    echo "using grep command to find the files";
-    echo "grep -ir ${old_zkserver1} /opt/zookeeper/${ZKDownload_Dirname}/ | wc -l";
-    fntoedit=`grep -ir ${old_zkserver1} /opt/zookeeper/${ZKDownload_Dirname}/ | wc -l`;
-    echo " Number of files to edit : ${fntoedit} ";
-    nametoChange=${new_zkServer1};
-    oldname=${old_zkserver1};
-fi
+## updating the files based on the server
+#if [[ "$HOSTNAME" = "${new_zkServer1}" ]];
+#  then
+#    echo "using grep command to find the files";
+#    echo "grep -ir ${old_zkserver1} /opt/zookeeper/${ZKDownload_Dirname}/ | wc -l";
+#    fntoedit=`grep -ir ${old_zkserver1} /opt/zookeeper/${ZKDownload_Dirname}/ | wc -l`;
+#    echo " Number of files to edit : ${fntoedit} ";
+#    nametoChange=${new_zkServer1};
+#    oldname=${old_zkserver1};
+#fi
+#
+#if [[ "$HOSTNAME" = "${new_zkServer2}" ]];
+#  then
+#    echo "using grep command to find the files";
+#        echo "grep -ir ${old_zkserver2} /opt/zookeeper/${ZKDownload_Dirname}/ | wc -l";
+#    fntoedit=`grep -ir ${old_zkserver2} /opt/zookeeper/${ZKDownload_Dirname}/ | wc -l`;
+#    echo " Number of files to edit : ${fntoedit} ";
+#    nametoChange=${new_zkServer2};
+#    oldname=${old_zkserver2};
+#fi
+#
+#if [[ "$HOSTNAME" = "${new_zkServer3}" ]];
+#  then
+#    echo "using grep command to find the files";
+#    echo "grep -ir ${old_zkserver3} /opt/zookeeper/${ZKDownload_Dirname}/ | wc -l";
+#    fntoedit=`grep -ir ${old_zkserver3} /opt/zookeeper/${ZKDownload_Dirname}/ | wc -l`;
+#    echo " Number of files to edit : ${fntoedit} ";
+#    nametoChange=${new_zkServer3};
+#    oldname=${old_zkserver3};
+#fi
 
-if [[ "$HOSTNAME" = "${new_zkServer2}" ]];
-  then
-    echo "using grep command to find the files";
-        echo "grep -ir ${old_zkserver2} /opt/zookeeper/${ZKDownload_Dirname}/ | wc -l";
-    fntoedit=`grep -ir ${old_zkserver2} /opt/zookeeper/${ZKDownload_Dirname}/ | wc -l`;
-    echo " Number of files to edit : ${fntoedit} ";
-    nametoChange=${new_zkServer2};
-    oldname=${old_zkserver2};
-fi
-
-if [[ "$HOSTNAME" = "${new_zkServer3}" ]];
-  then
-    echo "using grep command to find the files";
-    echo "grep -ir ${old_zkserver3} /opt/zookeeper/${ZKDownload_Dirname}/ | wc -l";
-    fntoedit=`grep -ir ${old_zkserver3} /opt/zookeeper/${ZKDownload_Dirname}/ | wc -l`;
-    echo " Number of files to edit : ${fntoedit} ";
-    nametoChange=${new_zkServer3};
-    oldname=${old_zkserver3};
-fi
-
-# changing dir and running find command with sed
-echo "changing dir to /opt/zookeeper/${ZKDownload_Dirname}/";
-(cd /opt/zookeeper/${ZKDownload_Dirname}/;echo "current dir : `pwd`";)
-echo "using grep command with xargs and sed to update string in a file";
-#dzdo find /opt/zookeeper/${ZKDownload_Dirname}/conf/ -type f -exec sed -i "s/${oldname}/${nametoChange}/g" {} \;
-dzdo grep -irl 'd010220017016.ds.dtveng.net' /opt/zookeeper/${ZKDownload_Dirname}/conf | xargs -I % sh -c " echo 'updating %' ; sed -i 's/${oldname}/${nametoChange}/g' %" ;
+## changing dir and running find command with sed
+#echo "changing dir to /opt/zookeeper/${ZKDownload_Dirname}/";
+#(cd /opt/zookeeper/${ZKDownload_Dirname}/;echo "current dir : `pwd`";)
+#echo "using grep command with xargs and sed to update string in a file";
+##dzdo find /opt/zookeeper/${ZKDownload_Dirname}/conf/ -type f -exec sed -i "s/${oldname}/${nametoChange}/g" {} \;
+#dzdo grep -irl 'd010220017016.ds.dtveng.net' /opt/zookeeper/${ZKDownload_Dirname}/conf | xargs -I % sh -c " echo 'updating %' ; sed -i 's/${oldname}/${nametoChange}/g' %" ;
 
 
 #creating Symlink to currently installed zookeeperi
@@ -270,8 +284,7 @@ dzdo service zookeeper stop;
   then
     echo "zookeeper is stopped";
  else
-    extractZK_pid;
-    killZookeeper;
+   extractZKpid_killzkpid;
  fi
  echo "*********************END of stopZKService function*********************";
 }
@@ -290,6 +303,7 @@ echo "*********************END of cleanup_forfreshInstall function**************
 
 createZKKeytabs(){
   #Creating Zookeeper Keytab
+  echo "creating  zookeeper and spenigo keytabs"
   dzdo cd /opt/kerberos_Creationfiles;
   (dzdo cd /opt/kerberos_Creationfiles ; dzdo sh /opt/kerberos_Creationfiles/bias-create-svc-user.sh /etc/security/keytabs/zk.service.keytab "zookeeper/${HOSTNAME}@DS.DTVENG.NET";)
   (dzdo cd /opt/kerberos_Creationfiles ; dzdo sh /opt/kerberos_Creationfiles/bias-create-svc-user.sh /etc/security/keytabs/spnego.service.keytab "HTTP/${HOSTNAME}@DS.DTVENG.NET";)
@@ -305,7 +319,7 @@ createZKKeytabs(){
 ## Actual Process Starts here
 if [[ ${installZK} ]];
 then
-  echo "Doing a condition check for fresh install or upgrade";
+  echo "Doing a condition check for fresh install or upgrade using case";
       shopt -s nocasematch;
       case ${upgradeZK} in
           yes)
@@ -314,6 +328,7 @@ then
               stopZKService;
               zk_s3Download;
               zookeeper_Upgrade;
+              zk_asService;
               startZKService;
               success_failure_MSG;
           ;;
@@ -324,6 +339,7 @@ then
               userCreation;
               zk_s3Download;
               fresh_installZK;
+              change_zkconf;
               zk_asService;
               createZKKeytabs;
               startZKService;

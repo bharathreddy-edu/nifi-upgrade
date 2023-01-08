@@ -93,13 +93,15 @@ ad_kerberosfiles(){
 }
 
 
-
 # Misc installation starting point
 awscliInstall;
 installJava;
 addCACerts;
 addJcepolicy;
 ad_kerberosfiles;
+certs_prep_NIFI;
 
 
 
+
+}

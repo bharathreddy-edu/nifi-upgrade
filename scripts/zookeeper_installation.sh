@@ -104,7 +104,7 @@ current_zkConfdir=`service zookeeper status 2>&1 | sed -n '2p'  | sed -n -e 's/^
 #Copy conf from the previous version to new version.
 cd /opt/zookeeper/${ZKDownload_Dirname};
 dzdo mv /opt/zookeeper/${ZKDownload_Dirname}/conf /opt/zookeeper/${ZKDownload_Dirname}bkp_conf_`date '+%m-%d-%Y'`;
-dzdo cp ${current_zkConfdir} /opt/zookeeper/${ZKDownload_Dirname}/;
+dzdo cp -R ${current_zkConfdir} /opt/zookeeper/${ZKDownload_Dirname}/;
 dzdo chown -R zookeeper:apache-admin /opt/zookeeper;
 dzdo chmod -R 755 /opt/zookeeper;
 
@@ -122,7 +122,7 @@ success_failure_MSG(){
   dzdo  netstat -plten | grep  2181;
   if [[ ${?} -eq 0 ]];
   then
-    extractZK_pid;
+   echo "Zookeeper is running"
   else
       echo "Zookeeper might got Upgraded/installed, but there is trouble running the process";
       echo "Verify manually and  start the process."
@@ -191,8 +191,10 @@ dzdo chown -R zookeeper:zookeeper /data/zk_d1;
 
 # Creating /var/run/zookeeper for zookeeper
 dzdo mkdir -p /var/run/zookeeper;
+dzdo chmod -R 755 /var/run/zookeeper;
 dzdo chown -R zookeeper:apache-admin /var/run/zookeeper;
 dzdo mkdir -p /var/log/zookeeper;
+dzdo chmod -R 755 /var/log/zookeeper;
 dzdo chown -R zookeeper:apache-admin /var/log/zookeeper;
 
 # extracting dir name from filename
@@ -247,7 +249,7 @@ dzdo chmod -R 755 /opt/zookeeper;
 #dzdo grep -irl 'd010220017016.ds.dtveng.net' /opt/zookeeper/${ZKDownload_Dirname}/conf | xargs -I % sh -c " echo 'updating %' ; sed -i 's/${oldname}/${nametoChange}/g' %" ;
 
 
-#creating Symlink to currently installed zookeeperi
+#creating Symlink to currently installed zookeeper
 unlink /opt/zookeeper/current_zookeeper;
 dzdo ln -s /opt/zookeeper/${ZKDownload_Dirname} /opt/zookeeper/current_zookeeper;
 dzdo chown -R zookeeper:apache-admin /opt/zookeeper/current_zookeeper;
@@ -274,7 +276,15 @@ dzdo aws --version;
 # Starting Zk Service
 startZKService(){
 dzdo service zookeeper start;
-}
+if [[ ${?} -eq 0 ]];
+  then
+    echo "Started zookeeper";
+ else
+ echo "Unable to start zookeeper at this time.";
+ echo "Please configure zookeeper as service.";
+fi
+
+ }
 
 # Stoping Zk Service
 stopZKService(){

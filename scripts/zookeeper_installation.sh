@@ -40,13 +40,17 @@ zk_asService() {
     SVC_FILE="${initd_dir}/${SVC_NAME}"
     if [ ! -w  "${initd_dir}" ]; then
         echo "Current user does not have write permissions to ${initd_dir}. Cannot install NiFi as a service."
-        exit 1
+        exit 1;
     fi
 
 #removing existing file in init.d
-echo "removing existing service file form /etc/init.d";
-dzdo rm  -f  ${SVC_FILE};
+if [ -f "$SVC_FILE"];
+then
+    echo "removing existing service file form /etc/init.d";
+    dzdo rm  -f  ${SVC_FILE};
+fi
 
+echo "creating service file at ${SVC_FILE}"
 # Create the init script, overwriting anything currently present
 dzdo cat <<SERVICEDESCRIPTOR > ${SVC_FILE}
 #!/bin/sh
@@ -181,7 +185,7 @@ fresh_installZK(){
 echo "*********************Initiating fresh_installZK function*********************";
 #Creating Keytab Dir
 dzdo mkdir -p /etc/security/keytabs;
-dzdo chmod  755 /etc/security/keytab;
+dzdo chmod  755 /etc/security/keytabs;
 
 
 # Creating Data-dir for zookeeper

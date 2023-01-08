@@ -329,7 +329,8 @@ createZKKeytabs(){
 ## Actual Process Starts here
 if [[ ${installZK} ]];
 then
-  echo "Doing a condition check for fresh install or upgrade using case";
+  echo " you triggered script to install zookeeper"
+  echo "Doing a condition check to do a fresh install or upgrade";
       shopt -s nocasematch;
       case ${upgradeZK} in
           yes)

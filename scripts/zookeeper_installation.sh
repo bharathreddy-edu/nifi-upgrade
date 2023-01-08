@@ -21,7 +21,7 @@ else
     exit 1;
 fi
 
-if [ ${zk_installed} = "zk_installed"];
+if [ ${zk_installed} = "zk_installed" ];
     then
       # Kill the existing zookeeper
       dzdo kill -9 ${ZK_PID_EXIST};

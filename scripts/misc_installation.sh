@@ -98,8 +98,8 @@ awscliInstall;
 installJava;
 addCACerts;
 addJcepolicy;
-ad_kerberosfiles;
-certs_prep_NIFI;
+  ad_kerberosfiles;
+
 
 
 

@@ -177,6 +177,10 @@ change_zkconf(){
 
     done ;
 
+    echo "updating zk jaas conf"
+    tf1=`klist -kt /etc/security/keytabs/zk.service.keytab | grep zookeeper | cut -d ' ' -f 7 | cut -d '/' -f 1`;
+    tf2=`klist -kt /etc/security/keytabs/zk.service.keytab | grep zookeeper | cut -d ' ' -f 7 | cut -d '/' -f 2`;
+    sed -i "s/^.*principal=.*$/principal=\"${tf1}\/${tf2}\";/" /opt/zookeeper/current_zookeeper/conf/zookeeper_jaas.conf;
 }
 
 

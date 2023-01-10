@@ -146,7 +146,7 @@ echo "*********************END of userCreation function*********************";
 }
 
 # Installing nifi on the node
-fresh_installZK(){
+fresh_installNIFI(){
 echo "*********************Initiating fresh_installZK function*********************";
 #Creating Keytab Dir
 dzdo mkdir -p /etc/security/keytabs;
@@ -206,10 +206,11 @@ sed -i "s/^server\.1=.*$/server\.1=${new_zkServer3}:2181/" /opt/nifi/${NIFIDownl
 echo "updated zookeeper.properties file in nifi conf";
 
 #updating zk info in nifi.properties
-sed -i "s/^nifi\.zookeeper\.connect\.string=.*$/nifi\.zookeeper\.connect\.string=${new_zkServer1}:${NIFI_PORT:=9091},${new_zkServer2}:${NIFI_PORT:=9091},${new_zkServer3}:${NIFI_PORT:=9091}/" /opt/nifi/${NIFIDownload_Dirname}/conf/nifi.properties;
+sed -i "s/^nifi\.zookeeper\.connect\.string=.*$/nifi\.zookeeper\.connect\.string=${new_zkServer1}:${ZK_PORT:=2181},${new_zkServer2}:${ZK_PORT:=2181},${new_zkServer3}:${ZK_PORT:=2181}/" /opt/nifi/${NIFIDownload_Dirname}/conf/nifi.properties;
 echo "updated zookeeper connection string in nifi.properties file";
 
 # updating the files based on the server
+i=1;
 for (( i=1 ; i<=${NIFI_SERVER_COUNT}; i++));
 do
   varnewTemp="new_nfServer${i}";
@@ -226,13 +227,14 @@ do
     echo "updating service principal and spnego principal in nifi prop file"
     sed -i "s/^nifi\.kerberos\.service\.principal=.*$/nifi\.kerberos\.service\.principal=${tf1}\/${tf2}/" /opt/nifi/${NIFIDownload_Dirname}/conf/zookeeper.properties ;
     sed -i "s/^nifi\.kerberos\.spnego\.principal=.*$/nifi\.kerberos\.spnego\.principal=HTTP\/${tf2}/" /opt/nifi/${NIFIDownload_Dirname}/conf/zookeeper.properties ;
-
-
-
-
-
+    echo "updating Stastate-management.xml file"
+    temp_var1=`echo "${NIFIDownload_Dirname}" | sed 's/\./_/g' | sed 's/-/_/g'`;
+    sed -i "s/^.*\"Root\ Node\".*$/\<property\ name=\"Root\ Node\"\>\/${temp_var1}\<\/property\>/" /opt/nifi/${NIFIDownload_Dirname}/conf/state-management.xml ;
+    sed -i "s/^.*\"Connect\ String\".*$/\<property\ name=\"Connect\ String\"\>${new_zkServer1}:${ZK_PORT:=2181},${new_zkServer2}:${ZK_PORT:=2181},${new_zkServer3}:${ZK_PORT:=2181}\<\/property\>/" /opt/nifi/${NIFIDownload_Dirname}/conf/state-management.xml;
+    dzdo cp /opt/nifi/${NIFIDownload_Dirname}/conf/authorizers.xml /opt/nifi/${NIFIDownload_Dirname}/conf/bkp_authorizers.xml_`date '+%m-%d-%Y'`;
 fi
 done;
+
 
 
 

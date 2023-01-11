@@ -211,7 +211,7 @@ echo "updated zookeeper connection string in nifi.properties file";
 
 # updating the files based on the server
 i=1;
-for (( i=1 ; i<=${NIFI_SERVER_COUNT}; i++));
+for (( i=1 ; i<=${NIFI_SERVER_COUNT}; i++ ));
 do
   varnewTemp="new_nfServer${i}";
   varoldTemp="old_nfserver${i}";
@@ -232,6 +232,7 @@ do
     sed -i "s/^.*\"Root\ Node\".*$/\<property\ name=\"Root\ Node\"\>\/${temp_var1}\<\/property\>/" /opt/nifi/${NIFIDownload_Dirname}/conf/state-management.xml ;
     sed -i "s/^.*\"Connect\ String\".*$/\<property\ name=\"Connect\ String\"\>${new_zkServer1}:${ZK_PORT:=2181},${new_zkServer2}:${ZK_PORT:=2181},${new_zkServer3}:${ZK_PORT:=2181}\<\/property\>/" /opt/nifi/${NIFIDownload_Dirname}/conf/state-management.xml;
     dzdo cp /opt/nifi/${NIFIDownload_Dirname}/conf/authorizers.xml /opt/nifi/${NIFIDownload_Dirname}/conf/bkp_authorizers.xml_`date '+%m-%d-%Y'`;
+    sed -i '/^.*Node\ Identity.*$/d' /opt/nifi/${NIFIDownload_Dirname}/conf/authorizers.xml
 fi
 done;
 

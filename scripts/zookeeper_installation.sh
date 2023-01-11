@@ -175,6 +175,23 @@ change_zkconf(){
         ;;
         esac
 
+for (( i=1 ; i<=${ZK_SERVER_COUNT}; i++ ));
+do
+  varnewzkTemp="new_zkServer${i}";
+  varoldzkTemp="old_nfserver${i}";
+  if [[ "$HOSTNAME" = "${!varTemp}" ]];
+  then
+    echo "using grep command to find the files";
+    echo "grep -ir ${!varoldzkTemp} /opt/nifi/${ZKDownload_Dirname}/ | wc -l";
+    fntoedit=`grep -ir ${!varoldTemp} /opt/nifi/${ZKDownload_Dirname}/ | wc -l`;
+    echo " Number of files to edit : ${fntoedit} ";
+    nametoChange=${!varnewzkTemp};
+    oldname=${!varoldTemp};
+fi
+done;
+
+
+
     done ;
 
     echo "updating zk jaas conf"

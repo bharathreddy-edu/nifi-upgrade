@@ -1,0 +1,236 @@
+description: |-
+  *Replace this default text with instructions or other information about your document.*  
+
+  ---
+  # What is Markdown?
+  Markdown is a lightweight markup language that converts your content with plain text formatting to structurally valid rich text.
+  ## You can add headings
+  You can add *italics* or make the font **bold**.  
+  1. Create numbered lists 
+  * Add bullet points 
+  >Indent `code samples` 
+
+  You can create a [link to another webpage](${ AWS_ENDPOINT }).
+schemaVersion: '0.3'
+parameters:
+  ec2instanceidplaceholder:
+    type: 'AWS::EC2::Instance::Id'
+    default: i-0530b538bede8c0e8
+  BASEZOOKEEPERHOMEPATH:
+    type: String
+    default: '{{ssm:/nifi/zk_upgrade/param/BASE_ZOOKEEPER_HOMEPATH}}'
+  S3DOWNLOADABSPATH:
+    type: String
+    default: '{{ssm:/nifi/zk_upgrade/param/S3_DOWNLOAD_ABSPATH}}'
+  S3zkpathworkingABSPATH:
+    type: String
+    default: '{{ssm:/nifi/zk_upgrade/param/S3_zkpath_working_ABSPATH}}'
+  ZKDownloadFilename:
+    type: String
+    default: '{{ssm:/nifi/zk_upgrade/param/ZKDownload_Filename}}'
+  ZKPORT:
+    type: String
+    default: '{{ssm:/nifi/zk_upgrade/param/ZK_PORT}}'
+  ZKSERVERCOUNT:
+    type: String
+    default: '{{ssm:/nifi/zk_upgrade/param/ZK_SERVER_COUNT}}'
+  installZK:
+    type: String
+    default: '{{ssm:/nifi/zk_upgrade/param/installZK}}'
+  newzkServer1:
+    type: String
+    default: '{{ssm:/nifi/zk_upgrade/param/new_zkServer1}}'
+  upgradeZK:
+    type: String
+    default: '{{ssm:/nifi/zk_upgrade/param/upgradeZK}}'
+mainSteps:
+  - name: stopZKService
+    action: 'aws:runCommand'
+    onFailure: Abort
+    inputs:
+      DocumentName: AWS-RunShellScript
+      Parameters:
+        commands: |-
+          #!/bin/bash
+          echo "*********************Initiating stopZKService function*********************"; 
+          dzdo service zookeeper stop;
+          if [[ ${?} -eq 0 ]];
+          then
+          echo "zookeeper is stopped";
+          else
+          echo "*********************Initiating extractZK_pid function*********************"; 
+          ZK_PID_EXIST=`dzdo netstat -plten | grep ${ZK_PORT:=2181} | awk '{print $9}' | awk -F / '{print $1}'`;
+          if [[ ! -z ${ZK_PID_EXIST} ]];
+          then
+          echo "Zookeeper is installed on this node";
+          echo " Process Id is : ${ZK_PID_EXIST} ";
+          ZK_INSTALLED=zk_installed;
+          else
+          echo "Zookeeper is not installed on this node";
+          ZK_INSTALLED=zk_notinstalled;
+          exit 1;
+          fi
+          echo "checking if condition with variable ZK_INSTALLED = ${ZK_INSTALLED}";
+          if [[ ${ZK_INSTALLED} = "zk_installed" ]];
+          then
+          echo "Kill the existing zookeeper"; 
+          dzdo kill -9 ${ZK_PID_EXIST};
+          fi
+          echo "*********************END of extractZKpid_killzkpid function*********************"; 
+          fi
+          echo "*********************END of stopZKService function*********************";
+      InstanceIds:
+        - '{{ec2instanceidplaceholder}}'
+    timeoutSeconds: 150
+    nextStep: zk_s3Download
+    isCritical: false
+    description: 'Stopping Existing Service, if any'
+  - name: zk_s3Download
+    action: 'aws:runCommand'
+    inputs:
+      Parameters:
+        commands: |-
+          echo "*********************Initiating zk_s3Download function*********************";
+          # create dir if it dose not exits
+          dzdo mkdir -p /opt/zookeeper;
+          dzdo chown -R zookeeper:apache-admin /opt/zookeeper;
+          aws s3 cp {{S3DOWNLOADABSPATH}}/{{ZKDownloadFilename}} {{BASEZOOKEEPERHOMEPATH}}/;
+          if [[ ${?} -ne 0 ]];
+          then
+          echo -e "AWS copy Failed, Please check and make sure you have permission to copy. \n Server/Host should able to download it from the bucket you specified without keys"
+          exit 1;
+          fi
+          dzdo chown -R zookeeper:apache-admin /opt/zookeeper;
+          echo "*********************END of zk_s3Download function*********************";
+      InstanceIds:
+        - '{{ec2instanceidplaceholder}}'
+      DocumentName: AWS-RunShellScript
+    timeoutSeconds: 150
+    isCritical: false
+    nextStep: zookeeper_Upgrade
+    description: Downloading tar file from s3
+  - name: zookeeper_Upgrade
+    action: 'aws:runCommand'
+    inputs:
+      Parameters:
+        commands: |-
+          echo "*********************Initiating zookeeper_Upgrade function*********************";
+          ls -lart {{BASEZOOKEEPERHOMEPATH}}/{{ZKDownloadFilename}};
+          if [[ ${?} -ne 0 ]];
+          then
+          echo -e "File not available to extract"
+          exit 1;
+          fi
+          # extracting the tar.gz file
+          echo "extracting tar file"
+          (cd /opt/zookeeper/; dzdo tar -xvzf {{BASEZOOKEEPERHOMEPATH}}/{{ZKDownloadFilename}} > /dev/null;  if [ ${?} -eq 0 ]; then echo successfully untar the file; else echo "unsuccessful to untar the file"; fi)
+          # extracting dir name from filename
+          ZKDownload_Dirname=`echo {{ZKDownloadFilename}} | cut -d '.' -f 1-3`;
+          #finding the current conf
+          #current_zkConfdir=`service zookeeper status 2>&1 | sed -n '2p'  | sed -n -e 's/^.*: //p' | sed s/"\/zoo.cfg"//`;
+          current_zkConfdir=`ls -l ${BASE_ZOOKEEPER_HOMEPATH} | grep ^l | awk '{print $11}'`;
+          #Copy conf from the previous version to new version.
+          cd /opt/zookeeper/${ZKDownload_Dirname};
+          dzdo mv /opt/zookeeper/${ZKDownload_Dirname}/conf /opt/zookeeper/${ZKDownload_Dirname}bkp_conf_`date '+%m-%d-%Y'`;
+          dzdo cp -R ${current_zkConfdir}/conf /opt/zookeeper/${ZKDownload_Dirname}/;
+          dzdo chown -R zookeeper:apache-admin /opt/zookeeper;
+          dzdo chmod -R 755 /opt/zookeeper;
+          #creating Symlink to currently installed zookeeper
+          unlink /opt/zookeeper/current_zookeeper;
+          dzdo ln -s /opt/zookeeper/${ZKDownload_Dirname} /opt/zookeeper/current_zookeeper;
+          dzdo chown -R zookeeper:apache-admin /opt/zookeeper/current_zookeeper;
+          dzdo chown -R zookeeper:apache-admin /opt/zookeeper;
+          echo "*********************END of zookeeper_Upgrade function*********************";
+      InstanceIds:
+        - '{{ec2instanceidplaceholder}}'
+      DocumentName: AWS-RunShellScript
+    description: upgrading the current zookeeper configs
+    timeoutSeconds: 150
+    nextStep: zk_asService
+    isCritical: false
+  - name: zk_asService
+    action: 'aws:runCommand'
+    inputs:
+      DocumentName: AWS-RunShellScript
+      InstanceIds:
+        - '{{ec2instanceidplaceholder}}'
+      Parameters:
+        commands: |-
+          echo "*********************Initiating zk_asService function*********************";
+          SVC_NAME=zookeeper
+          initd_dir='/etc/init.d'
+          SVC_FILE="${initd_dir}/${SVC_NAME}"
+          if [ ! -w  "${initd_dir}" ]; then
+          echo "Current user does not have write permissions to ${initd_dir}. Cannot install NiFi as a service."
+          exit 1;
+          fi
+          #removing existing file in init.d
+          if [ -f "$SVC_FILE"];
+          then
+          echo "removing existing service file form /etc/init.d";
+          dzdo rm  -f  ${SVC_FILE};
+          fi
+          echo "creating service file at ${SVC_FILE}"
+          # Create the init script, overwriting anything currently present
+          dzdo cat <<SERVICEDESCRIPTOR > ${SVC_FILE}
+          #!/bin/sh
+          # description: Apache Zookeeper ZooKeeper is a centralized service for maintaining configuration information, 
+          # naming, providing distributed synchronization, and providing group services.
+          # Make use of the configured ZOOKEEPER_HOME directory and pass service requests to the zkServer.sh 
+          # executable
+          ZOOKEEPER_HOME=/opt/zookeeper/current_zookeeper
+          bin_dir=\${ZOOKEEPER_HOME}/bin
+          zookeeper_executable=\${bin_dir}/zkServer.sh
+          \${zookeeper_executable} "\$@"
+          SERVICEDESCRIPTOR
+          dzdo chmod 755 ${SVC_FILE};
+          echo "*********************END of zk_asService function*********************";
+    description: Installing zookeeper as service. This function********************* is copied/taken from apache nifi.sh file
+    timeoutSeconds: 150
+    nextStep: startZKService
+    isCritical: false
+  - name: startZKService
+    action: 'aws:runCommand'
+    description: ' Starting Zk Service'
+    inputs:
+      DocumentName: AWS-RunShellScript
+      InstanceIds:
+        - '{{ec2instanceidplaceholder}}'
+      Parameters:
+        commands: |-
+          echo "*********************Initiating startZKService*********************";
+          dzdo service zookeeper start;
+          if [[ ${?} -eq 0 ]];
+          then
+          echo "Started zookeeper";
+          else
+          echo "Unable to start zookeeper at this time.";
+          echo "Please configure zookeeper as service.";
+          fi
+          echo "*********************End of startZKService*********************";
+    timeoutSeconds: 150
+    nextStep: success_failure_MSG
+    isCritical: false
+  - name: success_failure_MSG
+    action: 'aws:runCommand'
+    inputs:
+      InstanceIds:
+        - '{{ec2instanceidplaceholder}}'
+      DocumentName: AWS-RunShellScript
+      Parameters:
+        commands: |-
+          echo "*********************Initiating success_failure_MSG function*********************";
+          dzdo  netstat -plten | grep  2181;
+          if [[ ${?} -eq 0 ]];
+          then
+          echo "Zookeeper is running"
+          else
+          echo "Zookeeper might got Upgraded/installed, but there is trouble running the process";
+          echo "Verify manually and  start the process."
+          exit 1;
+          fi
+          echo "*********************END of success_failure_MSG function*********************";
+    description: ' Printing Success Message'
+    timeoutSeconds: 150
+    isEnd: true
+    isCritical: false

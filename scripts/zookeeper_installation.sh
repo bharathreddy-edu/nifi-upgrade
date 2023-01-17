@@ -103,7 +103,8 @@ echo "extracting tar file"
 ZKDownload_Dirname=`echo ${ZKDownload_Filename} | cut -d '.' -f 1-3`;
 
 #finding the current conf
-current_zkConfdir=`service zookeeper status 2>&1 | sed -n '2p'  | sed -n -e 's/^.*: //p' | sed s/"\/zoo.cfg"//`;
+#current_zkConfdir=`service zookeeper status 2>&1 | sed -n '2p'  | sed -n -e 's/^.*: //p' | sed s/"\/zoo.cfg"//`;
+current_zkConfdir=`ls -l ${BASE_ZOOKEEPER_HOMEPATH} | grep ^l | awk '{print $11}'`;
 
 #Copy conf from the previous version to new version.
 cd /opt/zookeeper/${ZKDownload_Dirname};
@@ -152,47 +153,54 @@ echo "*********************END of userCreation function*********************";
 
 
 change_zkconf(){
-    echo "using for loop to update the config"
-     for line in `grep -ir 'server.[0-9]=' /opt/zookeeper/current_zookeeper/conf`;
-     do
-        echo "${line}" ;
-        fl_name_f1=`echo "${line}"  | cut -d: -f1 `;
-        serv_name_f2=`echo "${line}"  | cut -d: -f2`;
-        serv_name_info=`echo "${line}"  | cut -d: -f2 | cut -d= -f1`;
 
-        case ${serv_name_info} in
-        server.1)
-              echo "updating ${serv_name_info} info in ${fl_name_f1}" ;
-              sed -i "s/${serv_name_f2}/${serv_name_info}=${new_zkServer1}/g" ${fl_name_f1} ;
-        ;;
-        server.2)
-              echo "updating ${serv_name_info} info in ${fl_name_f1}" ;
-              sed -i "s/${serv_name_f2}/${serv_name_info}=${new_zkServer2}/g" ${fl_name_f1} ;
-        ;;
-        server.3)
-              echo "updating ${serv_name_info} info in ${fl_name_f1}" ;
-              sed -i "s/${serv_name_f2}/${serv_name_info}=${new_zkServer3}/g" ${fl_name_f1} ;
-        ;;
-        esac
+#     for line in `grep -ir 'server.[0-9]=' /opt/zookeeper/current_zookeeper/conf`;
+#     do
+#        echo "${line}" ;
+#        fl_name_f1=`echo "${line}"  | cut -d: -f1 `;
+#        serv_name_f2=`echo "${line}"  | cut -d: -f2`;
+#        serv_name_info=`echo "${line}"  | cut -d: -f2 | cut -d= -f1`;
+#
+#        case ${serv_name_info} in
+#        server.1)
+#              echo "updating ${serv_name_info} info in ${fl_name_f1}" ;
+#              sed -i "s/${serv_name_f2}/${serv_name_info}=${new_zkServer1}/g" ${fl_name_f1} ;
+#        ;;
+#        server.2)
+#              echo "updating ${serv_name_info} info in ${fl_name_f1}" ;
+#              sed -i "s/${serv_name_f2}/${serv_name_info}=${new_zkServer2}/g" ${fl_name_f1} ;
+#        ;;
+#        server.3)
+#              echo "updating ${serv_name_info} info in ${fl_name_f1}" ;
+#              sed -i "s/${serv_name_f2}/${serv_name_info}=${new_zkServer3}/g" ${fl_name_f1} ;
+#        ;;
+#        esac
+#done ;
+echo "Removig line from zoo.cfg and zoo.cfg.dynamic with pattern server.[0-9]";
+sed -i '/server\.[0-9]=/d' /opt/nifi/${ZKDownload_Dirname}/conf/zoo.cfg ;
+sed -i '/server\.[0-9]=/d' /opt/nifi/${ZKDownload_Dirname}/conf/zoo.cfg.dynamic ;
 
+ZK_DYNAMIC_NUM=`wc -l /opt/nifi/${ZKDownload_Dirname}/conf/zoo.cfg.dynamic | cut -d ' ' -f 1`;
+ZK_CFG_NUM=`wc -l /opt/nifi/${ZKDownload_Dirname}/conf/zoo.cfg.dynamic | cut -d ' ' -f 1`;
+ZK_DYNAMIC_NUM=$((ZK_DYNAMIC_NUM+2));
+ZK_CFG_NUM=$((ZK_CFG_NUM+2));
+
+echo "using for loop to update the config"
 for (( i=1 ; i<=${ZK_SERVER_COUNT}; i++ ));
 do
   varnewzkTemp="new_zkServer${i}";
   varoldzkTemp="old_nfserver${i}";
-  if [[ "$HOSTNAME" = "${!varTemp}" ]];
-  then
-    echo "using grep command to find the files";
-    echo "grep -ir ${!varoldzkTemp} /opt/nifi/${ZKDownload_Dirname}/ | wc -l";
-    fntoedit=`grep -ir ${!varoldTemp} /opt/nifi/${ZKDownload_Dirname}/ | wc -l`;
-    echo " Number of files to edit : ${fntoedit} ";
+  varserzkTemp="old_nfserver${i}";
+
+    echo "updating values in zoo.cfg for ${!varserzkTemp} ";
+
     nametoChange=${!varnewzkTemp};
     oldname=${!varoldTemp};
-fi
+
 done;
 
 
 
-    done ;
 
     echo "updating zk jaas conf"
     tf1=`klist -kt /etc/security/keytabs/zk.service.keytab | grep zookeeper | cut -d ' ' -f 7 | cut -d '/' -f 1`;
@@ -366,7 +374,7 @@ then
               zookeeper_Upgrade;
               zk_asService;
               startZKService;
-              success_failure_MSG;
+                success_failure_MSG;
           ;;
           no)
               echo " #### @@@@ Installing zookeeper service based on the below parameter #### @@@@ ";

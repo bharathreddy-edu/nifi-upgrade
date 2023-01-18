@@ -31,18 +31,6 @@ parameters:
   ZKPORT:
     type: String
     default: '{{ssm:/nifi/zk_upgrade/param/ZK_PORT}}'
-  ZKSERVERCOUNT:
-    type: String
-    default: '{{ssm:/nifi/zk_upgrade/param/ZK_SERVER_COUNT}}'
-  installZK:
-    type: String
-    default: '{{ssm:/nifi/zk_upgrade/param/installZK}}'
-  newzkServer1:
-    type: String
-    default: '{{ssm:/nifi/zk_upgrade/param/new_zkServer1}}'
-  upgradeZK:
-    type: String
-    default: '{{ssm:/nifi/zk_upgrade/param/upgradeZK}}'
 mainSteps:
   - name: stopZKService
     action: 'aws:runCommand'
@@ -92,15 +80,15 @@ mainSteps:
         commands: |-
           echo "*********************Initiating zk_s3Download function*********************";
           # create dir if it dose not exits
-          dzdo mkdir -p /opt/zookeeper;
-          dzdo chown -R zookeeper:apache-admin /opt/zookeeper;
+          dzdo mkdir -p {{BASEZOOKEEPERHOMEPATH}};
+          dzdo chown -R zookeeper:apache-admin {{BASEZOOKEEPERHOMEPATH}};
           aws s3 cp {{S3DOWNLOADABSPATH}}/{{ZKDownloadFilename}} {{BASEZOOKEEPERHOMEPATH}}/;
           if [[ ${?} -ne 0 ]];
           then
           echo -e "AWS copy Failed, Please check and make sure you have permission to copy. \n Server/Host should able to download it from the bucket you specified without keys"
           exit 1;
           fi
-          dzdo chown -R zookeeper:apache-admin /opt/zookeeper;
+          dzdo chown -R zookeeper:apache-admin {{BASEZOOKEEPERHOMEPATH}};
           echo "*********************END of zk_s3Download function*********************";
       InstanceIds:
         - '{{ec2instanceidplaceholder}}'
@@ -123,23 +111,23 @@ mainSteps:
           fi
           # extracting the tar.gz file
           echo "extracting tar file"
-          (cd /opt/zookeeper/; dzdo tar -xvzf {{BASEZOOKEEPERHOMEPATH}}/{{ZKDownloadFilename}} > /dev/null;  if [ ${?} -eq 0 ]; then echo successfully untar the file; else echo "unsuccessful to untar the file"; fi)
+          (cd {{BASEZOOKEEPERHOMEPATH}}/; dzdo tar -xvzf {{BASEZOOKEEPERHOMEPATH}}/{{ZKDownloadFilename}} > /dev/null;  if [ ${?} -eq 0 ]; then echo successfully untar the file; else echo "unsuccessful to untar the file"; fi)
           # extracting dir name from filename
           ZKDownload_Dirname=`echo {{ZKDownloadFilename}} | cut -d '.' -f 1-3`;
           #finding the current conf
           #current_zkConfdir=`service zookeeper status 2>&1 | sed -n '2p'  | sed -n -e 's/^.*: //p' | sed s/"\/zoo.cfg"//`;
-          current_zkConfdir=`ls -l ${BASE_ZOOKEEPER_HOMEPATH} | grep ^l | awk '{print $11}'`;
+          current_zkConfdir=`ls -l {{BASEZOOKEEPERHOMEPATH}} | grep ^l | awk '{print $11}'`;
           #Copy conf from the previous version to new version.
-          cd /opt/zookeeper/${ZKDownload_Dirname};
-          dzdo mv /opt/zookeeper/${ZKDownload_Dirname}/conf /opt/zookeeper/${ZKDownload_Dirname}bkp_conf_`date '+%m-%d-%Y'`;
-          dzdo cp -R ${current_zkConfdir}/conf /opt/zookeeper/${ZKDownload_Dirname}/;
-          dzdo chown -R zookeeper:apache-admin /opt/zookeeper;
-          dzdo chmod -R 755 /opt/zookeeper;
+          cd {{BASEZOOKEEPERHOMEPATH}}/${ZKDownload_Dirname};
+          dzdo mv {{BASEZOOKEEPERHOMEPATH}}/${ZKDownload_Dirname}/conf {{BASEZOOKEEPERHOMEPATH}}/${ZKDownload_Dirname}/bkp_conf_`date '+%m-%d-%Y'`;
+          dzdo cp -R ${current_zkConfdir}/conf {{BASEZOOKEEPERHOMEPATH}}/${ZKDownload_Dirname}/;
+          dzdo chown -R zookeeper:apache-admin {{BASEZOOKEEPERHOMEPATH}};
+          dzdo chmod -R 755 {{BASEZOOKEEPERHOMEPATH}};
           #creating Symlink to currently installed zookeeper
-          unlink /opt/zookeeper/current_zookeeper;
-          dzdo ln -s /opt/zookeeper/${ZKDownload_Dirname} /opt/zookeeper/current_zookeeper;
-          dzdo chown -R zookeeper:apache-admin /opt/zookeeper/current_zookeeper;
-          dzdo chown -R zookeeper:apache-admin /opt/zookeeper;
+          unlink {{BASEZOOKEEPERHOMEPATH}}/current_zookeeper;
+          dzdo ln -s {{BASEZOOKEEPERHOMEPATH}}/${ZKDownload_Dirname} {{BASEZOOKEEPERHOMEPATH}}/current_zookeeper;
+          dzdo chown -R zookeeper:apache-admin {{BASEZOOKEEPERHOMEPATH}}/current_zookeeper;
+          dzdo chown -R zookeeper:apache-admin {{BASEZOOKEEPERHOMEPATH}};
           echo "*********************END of zookeeper_Upgrade function*********************";
       InstanceIds:
         - '{{ec2instanceidplaceholder}}'

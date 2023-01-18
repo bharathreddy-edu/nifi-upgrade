@@ -3,41 +3,38 @@ schemaVersion: '0.3'
   ZK_PORT:'{{ZookeeperPort}}',
 S3_DOWNLOAD_ABSPATH: '{{S3DownloadAbsolutePath}}',
 parameters:
-  ZookeeperPort:
+  NIFIPORT:
     type: String
-    description: '(Required) zookeeper port, please use default port 2181, do not change it unless needed.'
-    default: '2181'
-  installZK:
+    description: '(Required) NiFi port, please use default port 9091, do not change it unless needed.'
+    default: '9091'
+  upgradeNIFI:
     type: String
     description: (Required) true, if you need to install zookeeper service on the server. false, if you dont want to install zookeeper service on the server.
     allowedValues:
-      - true
-      - false
-    default: false
-  upgradeZK:
-    type: String
-    description: (Required) yes, if you need to upgrade zookeeper to a newer version,  no, if you are doing a fresh zookeeper installation.
-    allowedValues:
       - yes
       - no
-    default: yes
-  S3DownloadAbsolutePath:
+    default: no
+  nifiS3DOWNLOADABSPATH:
     type: String
     description: (Required) s3 path from where we can download the tar file (do not put / at end).
-    default: 's3://dtv-bigdatadl-nifi-dev-int/NiFi_Zookeeper_Softwares/zookeeper'
-  S3ZookeeperWorkingAbsolutePath:
+    default: 's3://dtv-bigdatadl-nifi-dev-int/NiFi_Zookeeper_Softwares/nifi'
+  S3nifipathworkingABSPATH:
     type: String
-    description: (Required) backup location of a working zookeeper installation, do not update this path until necessary (do not put / at end).
-    default: 's3://dtv-bigdatadl-nifi-dev-int/NiFi_ZK_Backups/zookeeper/apache-zookeeper-3.8.0-bin'
-  ZKDownload_Filename:
+    description: (Required) backup location of a working NiFi installation, do not update this path until necessary (do not put / at end).
+    default: 's3://dtv-bigdatadl-nifi-dev-int/NiFi_ZK_Backups/nifi/nifi-1.16.1'
+  NIFI_Download_Filename:
     type: String
     description: (Required) apache zk tar filename, which you will be installing now.
-    default: 'apache-zookeeper-3.8.0-bin.tar.gz'
-  BaseZookeeperHomePth:
+    default: 'nifi-1.16.1-bin.tar.gz'
+  BASENIFIHOMEPATH:
     type: String
     description: (Required) Base location for zookeeper installation, do not update it.
-    default: '/opt/zookeeper'
+    default: '/opt/nifi'
   HostNamesList:
+    type: String
+    description: (Required) Please provide comma seperated list of all the nodes, where you gonna install zookeeper service.
+    default: ''
+  NIFI_SERVER_COUNT:
     type: String
     description: (Required) Please provide comma seperated list of all the nodes, where you gonna install zookeeper service.
     default: ''

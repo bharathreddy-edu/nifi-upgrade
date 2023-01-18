@@ -176,36 +176,35 @@ change_zkconf(){
 #        ;;
 #        esac
 #done ;
-echo "Removig line from zoo.cfg and zoo.cfg.dynamic with pattern server.[0-9]";
+echo "updating clientPortalAddress in zoo.cfg"
+sed -i "s/^clientPortAddress=.*$/clientPortAddress=${HOSTNAME}/" /opt/nifi/${ZKDownload_Dirname}/zoo.cfg;
+echo "Removing line from zoo.cfg and zoo.cfg.dynamic with pattern server.[0-9]";
 sed -i '/server\.[0-9]=/d' /opt/nifi/${ZKDownload_Dirname}/conf/zoo.cfg ;
 sed -i '/server\.[0-9]=/d' /opt/nifi/${ZKDownload_Dirname}/conf/zoo.cfg.dynamic ;
+#temp_number_zkInstance=`echo $zkserverlist | awk -F\, '{print NF-1}'`;
+#
+#ZK_DYNAMIC_NUM=`wc -l /opt/nifi/${ZKDownload_Dirname}/conf/zoo.cfg.dynamic | cut -d ' ' -f 1`;
+#ZK_CFG_NUM=`wc -l /opt/nifi/${ZKDownload_Dirname}/conf/zoo.cfg.dynamic | cut -d ' ' -f 1`;
+#ZK_DYNAMIC_NUM=$((ZK_DYNAMIC_NUM+2));
+#ZK_CFG_NUM=$((ZK_CFG_NUM+2));
 
-ZK_DYNAMIC_NUM=`wc -l /opt/nifi/${ZKDownload_Dirname}/conf/zoo.cfg.dynamic | cut -d ' ' -f 1`;
-ZK_CFG_NUM=`wc -l /opt/nifi/${ZKDownload_Dirname}/conf/zoo.cfg.dynamic | cut -d ' ' -f 1`;
-ZK_DYNAMIC_NUM=$((ZK_DYNAMIC_NUM+2));
-ZK_CFG_NUM=$((ZK_CFG_NUM+2));
+echo "#Adding server info" >> /opt/nifi/${ZKDownload_Dirname}/conf/zoo.cfg ;
 
-echo "using for loop to update the config"
-for (( i=1 ; i<=${ZK_SERVER_COUNT}; i++ ));
+echo " zookeeper server list = ${zkServerList}";
+zkserverList_temp=`echo ${zkServerList} | sed 's/,/\ /g'`;
+echo "using for loop to update the config";
+varzkcount=0;
+for i in ${zkserverList_temp};
 do
-  varnewzkTemp="new_zkServer${i}";
-  varoldzkTemp="old_nfserver${i}";
-  varserzkTemp="old_nfserver${i}";
-
-    echo "updating values in zoo.cfg for ${!varserzkTemp} ";
-
-    nametoChange=${!varnewzkTemp};
-    oldname=${!varoldTemp};
-
+varzkcount=$((varzkcount + 1));
+echo "server.$varzkcount=${i}:2888:3888:participant" >> /opt/nifi/${ZKDownload_Dirname}/conf/zoo.cfg ;
+echo "server.$varzkcount=${i}:2888:3888:participant" >> /opt/nifi/${ZKDownload_Dirname}/conf/zoo.cfg.dynamic ;
 done;
 
-
-
-
-    echo "updating zk jaas conf"
-    tf1=`klist -kt /etc/security/keytabs/zk.service.keytab | grep zookeeper | cut -d ' ' -f 7 | cut -d '/' -f 1`;
-    tf2=`klist -kt /etc/security/keytabs/zk.service.keytab | grep zookeeper | cut -d ' ' -f 7 | cut -d '/' -f 2`;
-    sed -i "s/^.*principal=.*$/principal=\"${tf1}\/${tf2}\";/" /opt/zookeeper/current_zookeeper/conf/zookeeper_jaas.conf;
+echo "updating zk jaas conf"
+tf1=`klist -kt /etc/security/keytabs/zk.service.keytab | grep zookeeper | cut -d ' ' -f 7 | cut -d '/' -f 1`;
+tf2=`klist -kt /etc/security/keytabs/zk.service.keytab | grep zookeeper | cut -d ' ' -f 7 | cut -d '/' -f 2`;
+sed -i "s/^.*principal=.*$/principal=\"${tf1}\/${tf2}\";/" /opt/zookeeper/current_zookeeper/conf/zookeeper_jaas.conf;
 }
 
 

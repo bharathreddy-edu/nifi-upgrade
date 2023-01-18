@@ -98,7 +98,7 @@ awscliInstall;
 installJava;
 addCACerts;
 addJcepolicy;
-  ad_kerberosfiles;
+ad_kerberosfiles;
 
 
 

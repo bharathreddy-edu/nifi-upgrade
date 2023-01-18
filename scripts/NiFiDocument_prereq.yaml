@@ -1,0 +1,161 @@
+description: |-
+  *Replace this default text with instructions or other information about your document.*  
+
+  ---
+  # What is Markdown?
+  Markdown is a lightweight markup language that converts your content with plain text formatting to structurally valid rich text.
+  ## You can add headings
+  You can add *italics* or make the font **bold**.  
+  1. Create numbered lists 
+  * Add bullet points 
+  >Indent `code samples` 
+
+  You can create a [link to another webpage](${ AWS_ENDPOINT }).
+schemaVersion: '0.3'
+parameters:
+  s3javajarPath:
+    type: String
+    default: 's3://dtv-bigdatadl-nifi-dev-int/NiFi_ZK_Backups/java_jars'
+    description: java jar location in s3
+  svcaccNamewithRelam:
+    type: String
+    default: svc.nifi.n001.super@DS.DTVENG.NET
+    description: service account name with Realm
+  s3javacert:
+    type: String
+    default: 's3://dtv-bigdatadl-nifi-dev-int/NiFi_ZK_Backups/certs'
+    description: java BIAS root certs and intermediate certs from bias.ops.net page
+  s3kerberosfilePath:
+    type: String
+    default: 's3://dtv-bigdatadl-nifi-dev-int/NiFi_ZK_Backups/kerberos_admin_files'
+    description: 'kerberos files, which are used for creating user in AD'
+  ec2instanceidplaceholder:
+    type: 'AWS::EC2::Instance::Id'
+    description: ec2 instance id
+mainSteps:
+  - name: awscliInstall
+    action: 'aws:runCommand'
+    inputs:
+      DocumentName: AWS-RunShellScript
+      InstanceIds:
+        - '{{ec2instanceidplaceholder}}'
+      Parameters:
+        commands: |-
+          dzdo mkdir -p /tmp/installation_stuff/aws_temp;
+          dzdo chmod -R 777 /tmp/installation_stuff/aws_temp;
+          dzdo cd /tmp/installation_stuff/aws_temp;
+          dzdo curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "/tmp/installation_stuff/aws_temp/awscliv2.zip" ;
+          dzdo unzip /tmp/installation_stuff/aws_temp/awscliv2.zip -d /tmp/installation_stuff/aws_temp/ ;
+          dzdo chmod -R 777 /tmp/installation_stuff/aws_temp;
+          dzdo sh /tmp/installation_stuff/aws_temp/aws/install -i /usr/local/aws -b /usr/local/bin;
+          dzdo chmod -R 775 /usr/local/aws;
+          echo " **************** AWS CLI VERSION INFORMATION ****************"
+          echo "`aws --version`"
+          echo " **************************** END ****************************"
+    description: Installing AWS CLI
+    timeoutSeconds: 150
+    isCritical: false
+    nextStep: installJava
+  - name: installJava
+    action: 'aws:runCommand'
+    inputs:
+      DocumentName: AWS-RunShellScript
+      InstanceIds:
+        - '{{ec2instanceidplaceholder}}'
+      Parameters:
+        commands: |-
+          # copying java jars and ca_certs.
+          dzdo mkdir -p /opt/java_jars;
+          dzdo chmod -R 775 /opt/java_jars;
+          dzdo aws s3 cp {{s3javajarPath}}/ /opt/java_jars/ --recursive ;
+          dzdo chmod -R 775 /opt/java_jars;
+          # Installing Java via local rpm using yum command
+          dzdo yum localinstall /opt/java_jars/jdk-8u121-linux-x64.rpm -y;
+          echo "******************************************************************";
+          echo " Installed Java"
+          echo "`java -version`"
+          echo "******************************************************************";
+    description: installing Java on this server
+    timeoutSeconds: 150
+    nextStep: addCACerts
+    isCritical: false
+  - name: addCACerts
+    action: 'aws:runCommand'
+    inputs:
+      DocumentName: AWS-RunShellScript
+      InstanceIds:
+        - '{{ec2instanceidplaceholder}}'
+      Parameters:
+        commands: |-
+          # Coping certs to java path
+          dzdo cp /opt/java_jars/ca-certs_dtv/* /usr/java/jdk1.8.0_121/jre/lib/security/ ;
+          # Adding CA CERTS to Keystore
+          cd /usr/java/jdk1.8.0_121/jre/lib/security/;
+          dzdo /usr/java/jdk1.8.0_121/bin/keytool -import -trustcacerts -keystore cacerts -storepass changeit  -noprompt -alias ATT_Entertainment_Technology_and_Operations_Intermediate_CA -file ATT_Entertainment_Technology_and_Operations_Intermediate_CA.cer
+          dzdo /usr/java/jdk1.8.0_121/bin/keytool -import -trustcacerts -keystore cacerts -storepass changeit  -noprompt -alias ATT_Mobility_and_Entertainment_Technology_and_Operations_Root_CA  -file ATT_Mobility_and_Entertainment_Technology_and_Operations_Root_CA.cer
+          dzdo /usr/java/jdk1.8.0_121/bin/keytool -import -trustcacerts -keystore cacerts -storepass changeit  -noprompt -alias DIRECTV_Classic_Issuing_CA -file DIRECTV_Classic_Issuing_CA.cer
+          dzdo /usr/java/jdk1.8.0_121/bin/keytool -import -trustcacerts -keystore cacerts -storepass changeit  -noprompt -alias DIRECTV_Engineering_DTVENG_Issuing_CA -file DIRECTV_Engineering_DTVENG_Issuing_CA.cer
+          dzdo /usr/java/jdk1.8.0_121/bin/keytool -import -trustcacerts -keystore cacerts -storepass changeit  -noprompt -alias DIRECTV_NextGen_Issuing_CA -file DIRECTV_NextGen_Issuing_CA.cer
+          dzdo /usr/java/jdk1.8.0_121/bin/keytool -import -trustcacerts -keystore cacerts -storepass changeit  -noprompt -alias DIRECTV_Operations_DTVOPS__Issuing_CA -file DIRECTV_Operations_DTVOPS__Issuing_CA.cer
+          dzdo /usr/java/jdk1.8.0_121/bin/keytool -import -trustcacerts -keystore cacerts -storepass changeit  -noprompt -alias DTV-Eng-Issuing-CA-01 -file DTV-Eng-Issuing-CA-01.cer
+          dzdo /usr/java/jdk1.8.0_121/bin/keytool -import -trustcacerts -keystore cacerts -storepass changeit  -noprompt -alias DTV-Ops-Issuing-CA-01 -file DTV-Ops-Issuing-CA-01.cer
+          dzdo /usr/java/jdk1.8.0_121/bin/keytool -import -trustcacerts -keystore cacerts -storepass changeit  -noprompt -alias DTV-Ops-Root-CA-01 -file DTV-Ops-Root-CA-01.cer
+    description: adding CA certs
+    timeoutSeconds: 150
+    nextStep: addJcepolicy
+    isCritical: false
+  - name: addJcepolicy
+    action: 'aws:runCommand'
+    inputs:
+      DocumentName: AWS-RunShellScript
+      InstanceIds:
+        - '{{ec2instanceidplaceholder}}'
+      Parameters:
+        commands: |-
+          # Install JCE Unlimited Strength Policy
+          dzdo unzip /opt/java_jars/jce_policy-8.zip "*.jar" -d /tmp ;
+          dzdo ls -l /usr/java/jdk1.8.0_121/jre/lib/security/*policy.jar ;
+          # if anything exits run below command if not skip it.
+          dzdo rm -f /usr/java/jdk1.8.0_121/jre/lib/security/*policy.jar ;
+          dzdo chmod -R 777 /tmp/UnlimitedJCEPolicyJDK8;
+          dzdo cp --preserve=timestamps /tmp/UnlimitedJCEPolicyJDK8/*policy.jar  /usr/java/jdk1.8.0_121/jre/lib/security/ ;
+          dzdo chmod 644 /usr/java/jdk1.8.0_121/jre/lib/security/*policy.jar ;
+          dzdo ls -l  /usr/java/jdk1.8.0_121/jre/lib/security/*policy.jar ;
+    description: Adding unlimited Jce policy
+    timeoutSeconds: 150
+    isCritical: false
+    nextStep: ad_kerberosfiles
+  - name: ad_kerberosfiles
+    action: 'aws:runCommand'
+    inputs:
+      DocumentName: AWS-RunShellScript
+      InstanceIds:
+        - '{{ec2instanceidplaceholder}}'
+      Parameters:
+        commands: |-
+          # making sure we have kerberos libs
+          dzdo yum install krb5* -y;
+          # creating necessary directories
+          dzdo mkdir -p /etc/security/keytabs /opt/kerberos_Creationfiles;
+          dzdo chmod -R 755 /etc/security/keytabs;
+          dzdo chmod -R 755 /opt/kerberos_Creationfiles;
+          # download the files from s3 to local
+          dzdo cd /opt/kerberos_Creationfiles/;
+          dzdo aws s3 cp {{s3kerberosfilePath}}/  /opt/kerberos_Creationfiles/ --recursive ;
+          dzdo chmod -R 755 /opt/kerberos_Creationfiles/*;
+          dzdo mv /opt/kerberos_Creationfiles/nifi-admin.keytab /etc/security/keytabs/;
+          dzdo mv /opt/kerberos_Creationfiles/nifi.principal /etc/security/keytabs/;
+          dzdo echo "{{svcaccNamewithRelam}}" > /etc/security/keytabs/nifi.principal;
+          temp_svcname=`klist -kt /etc/security/keytabs/nifi-admin.keytab | awk '{print $4}'| awk 'NF > 0'`;
+          # condition check to make sure the svc account used and the keytab has correct information
+          if [[ "$temp_svcname" != "{{svcaccNamewithRelam}}" ]];
+          then
+          echo "update the keytab in s3 location AND update it on the server";
+          exit 1;
+          else
+          echo "Keytab looks good and you are good to run bias commands to create keytabs";
+          fi
+    description: 'Downloading Kerberos-Bias-UserCreation related files '
+    isEnd: true
+    isCritical: false
+    timeoutSeconds: 150

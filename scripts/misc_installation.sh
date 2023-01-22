@@ -50,6 +50,17 @@ addJcepolicy(){
 }
 
 awscliInstall(){
+  if [ -d "/tmp/installation_stuff/" ]
+  then
+      echo "Directory /tmp/installation_stuff exists, backing it up" ;
+      mv /tmp/installation_stuff /tmp/installation_stuff_bkp_`date '+%m-%d-%Y_%N'`;
+      echo "backup completed";
+  fi
+  aws --version > /dev/null;status=$?;
+  if  [[ ${status} -eq 0 ]];
+  then
+  echo "Already installed, current version of aws is `aws --version | awk '{print $1}'| cut -d '/' -f 2`"
+  else
   dzdo mkdir -p /tmp/installation_stuff/aws_temp;
   dzdo chmod -R 777 /tmp/installation_stuff/aws_temp;
   dzdo cd /tmp/installation_stuff/aws_temp;
@@ -61,6 +72,7 @@ awscliInstall(){
   echo " **************** AWS CLI VERSION INFORMATION ****************"
   echo "`aws --version`"
   echo " **************************** END ****************************"
+  fi
 }
 
 ad_kerberosfiles(){

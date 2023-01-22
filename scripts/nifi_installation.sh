@@ -369,7 +369,7 @@ then
                     stopNiFiService;
                     nifi_s3Download;
                     nifi_Upgrade;
-                    startNiFiService;
+                    startNiFiS  ervice;
                     success_failure_MSG;
                 ;;
                 no)

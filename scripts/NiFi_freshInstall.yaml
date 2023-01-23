@@ -25,13 +25,16 @@ parameters:
   S3nfpathworkingABSPATH:
     type: String
     default: '{{ssm:/nifi/nf_upgrade/param/S3_nifipath_working_ABSPATH}}'
+  s3nifimisccopy:
+    type: String
+    default: '{{ssm:/nifi/nf_freshInstall/param/s3_nifi_misc_copy}}'
   NFDownloadFilename:
     type: String
     default: '{{ssm:/nifi/nf_upgrade/param/NIFI_Download_Filename}}'
   NIFIPORT:
     type: String
     default: '{{ssm:/nifi/nf_upgrade/param/NIFI_PORT}}'
-    nfserverlist:
+  nfserverlist:
     type: String
     default: '{{ssm:/nifi/nf_upgrade/param/nfserverlist}}'
   oldnfversion:
@@ -40,49 +43,65 @@ parameters:
   newnfversion:
     type: String
     default: '{{ssm:/nifi/nf_upgrade/param/newnfversion}}'
+  zkserverlist:
+    type: String
+    description: '(Required) List of comma separated hostnames where zookeeper is installed.'
+    default: '{{ssm:/nifi/zk_upgrade/param/zkserverlist}}'
+  nfcertpath:
+    type: String
+    description: '(Required) path from where you can download the certs. (do not put / at the end)'
+    default: '{{ssm:/nifi/nf_freshInstall/param/nf_cert_path}}'
+  varlibconf:
+    type: String
+    description: '(Required) path from where you can download the var_lib_conf_files. (do not put / at the end)'
+    default: '{{ssm:/nifi/nf_freshInstall/param/varlibconf}}'
 mainSteps:
-  - name: stopNFService
+  - name: cleanup_forfreshInstall
     action: 'aws:runCommand'
     onFailure: Abort
     inputs:
       DocumentName: AWS-RunShellScript
       Parameters:
         commands: |-
-          #!/bin/bash
-          echo "*********************Initiating stopNFService function*********************"; 
-          dzdo service nifi stop;
-          if [[ ${?} -eq 0 ]];
-          then
-          echo "NiFi is stopped";
-          else
-          echo "*********************Initiating extract_NF_pid function*********************"; 
-          NF_PID_EXIST=`dzdo netstat -plten | grep {{NIFIPORT}} | awk '{print $9}' | awk -F / '{print $1}'`;
-          if [[ ! -z ${NF_PID_EXIST} ]];
-          then
-          echo "Zookeeper is installed on this node";
-          echo " Process Id is : ${NF_PID_EXIST} ";
-          NF_INSTALLED=nf_installed;
-          else
-          echo "Zookeeper is not installed on this node";
-          NF_INSTALLED=nf_notinstalled;
-          exit 1;
-          fi
-          echo "checking if condition with variable NF_INSTALLED = ${NF_INSTALLED}";
-          if [[ ${NF_INSTALLED} = "nf_installed" ]];
-          then
-          echo "Kill the existing zookeeper"; 
-          dzdo kill -9 ${NF_PID_EXIST};
-          fi
-          echo "*********************END of extractNFpid_killzkpid function*********************"; 
-          fi
-          echo "*********************END of stopNFService function*********************";
+          echo "*********************Initiating cleanup_forfreshInstall function*********************";
+          temp_cdir=bkp_NF_`date '+%m-%d-%Y_%N'`;
+          dzdo mkdir -p /tmp/cleanup/${temp_cdir};
+          dzdo chmod -R 777 /tmp/cleanup;
+          dzdo mv {{BASENIFIHOMEPATH}} /tmp/cleanup/${temp_cdir}/;
+          echo "*********************END of cleanup_forfreshInstall function*********************";
       InstanceIds:
         - '{{ec2instanceidplaceholder}}'
     timeoutSeconds: 150
-    nextStep: nf_s3Download
+    nextStep: userCreation
     isCritical: false
-    description: 'Stopping Existing Service, if any'
-  - name: nf_s3Download
+    description: Clean-up script to make sure we can rerun the fresh installation
+  - name: userCreation
+    action: 'aws:runCommand'
+    inputs:
+      Parameters:
+        commands: |-
+          echo "*********************Initiating userCreation function*********************";
+          # Creating  nifi users and their home dirs
+          useradd -m nifi;
+          # Creating group named "apache-admin" & Adding users to it
+          groupadd apache-admin;
+          usermod -a -G apache-admin nifi;
+          # Creating nifi dir and nifi dir
+          dzdo mkdir -p {{BASENIFIHOMEPATH}};dzdo chown -R nifi:apache-admin {{BASENIFIHOMEPATH}};
+          # Creating /var/run/nifi for nifi
+          dzdo mkdir -p /var/run/nifi; dzdo chmod -R 755 /var/run/nifi; dzdo chown -R nifi:apache-admin /var/run/nifi;
+          dzdo mkdir -p /var/log/nifi; dzdo chmod -R 755 /var/log/nifi; dzdo chown -R nifi:apache-admin /var/log/nifi;
+          dzdo mkdir -p /var/lib/nifi/conf; dzdo chmod -R 755 /var/lib/nifi; dzdo chown -R nifi:apache-admin /var/lib/nifi;
+          dzdo mkdir -p /opt/dtv; dzdo chmod -R 755 /opt/dtv; dzdo chown -R nifi:apache-admin /opt/dtv;
+          echo "*********************END of userCreation function*********************";
+      InstanceIds:
+        - '{{ec2instanceidplaceholder}}'
+      DocumentName: AWS-RunShellScript
+    timeoutSeconds: 150
+    isCritical: false
+    nextStep: zk_s3Download
+    description: creating required user and group on the server
+  - name: zk_s3Download
     action: 'aws:runCommand'
     inputs:
       Parameters:
@@ -102,64 +121,125 @@ mainSteps:
       InstanceIds:
         - '{{ec2instanceidplaceholder}}'
       DocumentName: AWS-RunShellScript
+    description: download the tar file from s3
     timeoutSeconds: 150
+    nextStep: fresh_installZK
     isCritical: false
-    nextStep: nifi_Upgrade
-    description: Downloading file from s3
-  - name: nifi_Upgrade
+  - name: fresh_installZK
     action: 'aws:runCommand'
     inputs:
+      DocumentName: AWS-RunShellScript
+      InstanceIds:
+        - '{{ec2instanceidplaceholder}}'
       Parameters:
         commands: |-
-          echo "*********************Initiating nifi_Upgrade function*********************";
-          ls -lart {{BASENIFIHOMEPATH}}/{{NFDownloadFilename}};
-          if [[ ${?} -ne 0 ]];
-          then
-          echo -e "File not available to extract"
-          fi
+          echo "*********************Initiating fresh_installZK function*********************";
+          #Creating Required Directories
+          echo "creating Dirs"
+          dzdo mkdir -p /etc/security/keytabs;
+          dzdo chmod -R 755 /etc/security/keytab;
+          dzdo mkdir -p /var/run/nifi;dzdo chmod -R 755 /var/run/nifi;dzdo chown -R nifi:apache-admin /var/run/nifi;
+          dzdo mkdir -p /var/log/nifi;dzdo chmod -R 755 /var/log/nifi;dzdo chown -R nifi:apache-admin /var/log/nifi;
+          dzdo mkdir -p /var/lib/nifi/conf;dzdo chmod -R 755 /var/lib/nifi;dzdo chown -R nifi:apache-admin /var/lib/nifi;
+          dzdo mkdir -p /opt/dtv;dzdo chmod -R 755 /opt/dtv;dzdo chown -R nifi:apache-admin /opt/dtv;
+          dzdo mkdir -p /opt/nifi/security/pki;dzdo chmod -R 755 /opt/nifi/security/pki;
+          dzdo chown -R nifi:apache-admin /opt/nifi/security/pki;
+          aws s3 cp {{s3nifimisccopy}} /opt/dtv/NiFi_etc_Dir/ --recursive;
+          dzdo chown -R nifi:apache-admin /opt/dtv/NiFi_etc_Dir;
+          # extracting the tar.gz file
           case {{NFDownloadFilename}} in
           (*.tar.gz*)
+          echo "extracting nifi from tar file";
           (cd {{BASENIFIHOMEPATH}}/; dzdo tar -xvzf {{BASENIFIHOMEPATH}}/{{NFDownloadFilename}};)
           ;;
           (*.zip*)
+           echo "extracting nifi from zip file";
           (cd {{BASENIFIHOMEPATH}}/; dzdo unzip {{BASENIFIHOMEPATH}}/{{NFDownloadFilename}};)
           ;;
           (*)
           echo " Invalid option, File name should be either tar.gz or zip extension"
           ;;
           esac
-          # extracting the  file
-          echo "extracting tar file"
           # extracting dir name from filename
-          NIFIDownload_Dirname=`echo {{NFDownloadFilename}} | cut -d '-' -f 1-2`;
-          #Copy conf from the previous version to new version.
-          dzdo mv /opt/nifi/${NIFIDownload_Dirname}/conf /opt/nifi/${NIFIDownload_Dirname}/bkp_conf_`date '+%m-%d-%Y'`;
-          dzdo cp -R ${{BASENIFIHOMEPATH}}/current_nifi/conf {{BASENIFIHOMEPATH}}/${NIFIDownload_Dirname}/;
+          NIFIDownload_Dirname=`echo {{NFDownloadFilename}} |  cut -d '-' -f 1-2`;
+          #copying conf from s3 to new path
+          cd {{BASENIFIHOMEPATH}}/;
+          dzdo mv {{BASENIFIHOMEPATH}}/${NIFIDownload_Dirname}/conf {{BASENIFIHOMEPATH}}/${NIFIDownload_Dirname}/bkpORG_conf_`date '+%m-%d-%Y_%N'`;
+          dzdo aws s3 cp ${S3_nifipath_working_ABSPATH}/conf {{BASENIFIHOMEPATH}}/${NIFIDownload_Dirname}/conf/ --recursive ;
           dzdo chown -R nifi:apache-admin /opt/nifi;
           dzdo chmod -R 755 /opt/nifi;
-          echo "checking old version number"
-          if [[ -L "{{BASENIFIHOMEPATH}}/current_nifi" ]];then
-          old_number=`ls -l {{BASENIFIHOMEPATH}}/current_nifi | awk '{print $11}' | cut -d '/' -f '4' | cut -d '-' -f 2` ;
-          new_number=`echo ${NIFIDownload_Dirname} | cut -d '-' -f 2`;
-          fi
-          echo "Old version is ${old_number}";
-          echo "New version is ${new_number}";
-          touch {{BASENIFIHOMEPATH}}/README.txt;
-          echo "current version as of `date` is ${old_number}" >> {{BASENIFIHOMEPATH}}/README.txt;
-          echo "new version as of `date` is ${new_number}" >> {{BASENIFIHOMEPATH}}/README.txt;
-          #creating Symlink to currently installed nifi
+          # updating zk info in nifi conf dir
+          echo "*********************updating zk info in nifi conf dir*********************";
+          echo "Removing lines from zookeeper.properties ";
+          sed -i '/server\.[0-9]=/d' {{BASENIFIHOMEPATH}}/${NIFIDownload_Dirname}/conf/zookeeper.properties ;
+          echo " zookeeper server list = {{zkserverlist}}";
+          zkserverList_temp=`echo {{zkserverlist}} | sed 's/,/\ /g'`;
+          echo "using for loop to update the config";
+          varzkcount=0;
+          for i in ${zkserverList_temp};
+          do
+          varzkcount=$((varzkcount + 1));
+          echo "server.$varzkcount=${i}:2181" >> {{BASENIFIHOMEPATH}}/${NIFIDownload_Dirname}/conf/zookeeper.properties ;
+          done;
+          #updating zk connection string in nifi.properties
+          temp1zkstr=`echo ${zkserverlist} | sed 's/,/:2181,/g'`;
+          tempfnzkstr=`echo ${temp1zkstr} | sed 's/$/:2181/g'`;
+          sed -i "s/^nifi\.zookeeper\.connect\.string=.*$/nifi\.zookeeper\.connect\.string=${tempfnzkstr}/" {{BASENIFIHOMEPATH}}/${NIFIDownload_Dirname}/conf/nifi.properties;
+          echo "updated zookeeper connection string in nifi.properties file";
+          sed -ir "s/<property\ name=\"Connect\ String\".*$/\<property\ name=\"Connect\ String\"\>${tempfnzkstr}\<\/property\>/" {{BASENIFIHOMEPATH}}/${NIFIDownload_Dirname}/conf/state-management.xml;
+          echo "updated state-management.xml file in nifi conf";
+          echo "*********************update done for zk info in nifi conf dir*********************";
+          echo "updated state-management.xml file in nifi conf";
+          # updating the files based on the server
+          echo "updating nifi prop file";
+          sed -i "s/^nifi\.web\.https\.host=.*$/nifi\.web\.https\.host=${!varnewTemp}" {{BASENIFIHOMEPATH}}/current_nifi/conf/nifi.properties ;
+          sed -i "s/^nifi\.cluster\.node\.address=.*$/nifi\.cluster\.node\.address=${varnewTemp}/" {{BASENIFIHOMEPATH}}/current_nifi/conf/nifi.properties ;
+          echo "updating nifi jaas conf";
+          tf1=`klist -kt /etc/security/keytabs/nifi.service.keytab | grep nifi | cut -d ' ' -f 7 | cut -d '/' -f 1`;
+          tf2=`klist -kt /etc/security/keytabs/nifi.service.keytab | grep nifi | cut -d ' ' -f 7 | cut -d '/' -f 2`;
+          sed -i "s/^.*principal=.*$/principal=\"${tf1}\/${tf2}\";/" {{BASENIFIHOMEPATH}}/current_nifi/conf/nifi_jaas.conf;
+          echo "updating service principal and spnego principal in nifi prop file"
+          sed -i "s/^nifi\.kerberos\.service\.principal=.*$/nifi\.kerberos\.service\.principal=${tf1}\/${tf2}/" {{BASENIFIHOMEPATH}}/${NIFIDownload_Dirname}/conf/zookeeper.properties ;
+          sed -i "s/^nifi\.kerberos\.spnego\.principal=.*$/nifi\.kerberos\.spnego\.principal=HTTP\/${tf2}/" {{BASENIFIHOMEPATH}}/${NIFIDownload_Dirname}/conf/zookeeper.properties ;
+          sed -i "s/^.*\"Root\ Node\".*$/\<property\ name=\"Root\ Node\"\>\/nifi_current\<\/property\>/" {{BASENIFIHOMEPATH}}/${NIFIDownload_Dirname}/conf/state-management.xml ;
+          dzdo cp {{BASENIFIHOMEPATH}}/${NIFIDownload_Dirname}/conf/authorizers.xml {{BASENIFIHOMEPATH}}/${NIFIDownload_Dirname}/conf/bkp_authorizers.xml_`date '+%m-%d-%Y'`;
+          sed -i '/^.*Node\ Identity.*$/d' {{BASENIFIHOMEPATH}}/${NIFIDownload_Dirname}/conf/authorizers.xml
+          echo "Downloading certs"
+          if [ -d "{{BASENIFIHOMEPATH}}/certs_`date '+%Y'`" ]; then dzdo mv {{BASENIFIHOMEPATH}}/certs_`date '+%Y'` {{BASENIFIHOMEPATH}}/bkp_certs_`date '+%Y_%N'`; fi
+          dzdo mkdir -p {{BASENIFIHOMEPATH}}/certs_`date '+%Y'`;
+          dzdo chmod -R 755 {{BASENIFIHOMEPATH}}/certs_`date '+%Y'`;
+          dzdo aws s3 cp {{nfcertpath}}/${HOSTNAME}.zip  {{BASENIFIHOMEPATH}}/certs_`date '+%Y'`/ --recursive;
+          dzdo chmod 775 {{BASENIFIHOMEPATH}}/certs_`date '+%Y'`/${HOSTNAME}.zip ;
+          (cd {{BASENIFIHOMEPATH}}/certs_`date '+%Y'`; dzdo unzip {{BASENIFIHOMEPATH}}/certs_`date '+%Y'`/${HOSTNAME}.zip -d {{BASENIFIHOMEPATH}}/certs_`date '+%Y'`/temp/ ; )
+          dzdo mkdir -p {{BASENIFIHOMEPATH}}/security/pki;
+          dzdo chmod -R 755 {{BASENIFIHOMEPATH}}/security/pki;
+          temp_certstr=`openssl x509 -in {{BASENIFIHOMEPATH}}/certs_`date '+%Y'`/${HOSTNAME}.cer -text -noout | grep -i 'Subject\:\ C\ \=' | cut -d ':' -f 2 | sed "s/\ =\ /=/g"`;
+          temp_noCN=`echo $temp_certstr | sed "s/CN=.*$/CN=/g"`;
+          nfserverlist_temp=`echo {{nfserverlist}} | sed 's/,/\ /g'`;
+          echo "using for loop to update Node Identity the config";
+          varnfcount=0;
+          for nfhost in ${nfserverlist_temp};
+          do
+          varnfcount=$((varnfcount + 1));
+          temp_val=`echo "     <property name=\"Node Identity $varnfcount\">${temp_noCN}${nfhost}</property>"`;
+          echo "adding this ${temp_val} for node identity";
+          sed -i "/^.<\/authorizer>$/i ${temp_val}" authorizers.xml;
+          done;
+          (cd {{BASENIFIHOMEPATH}}/${ZKDownload_Dirname}/;echo "current dir : `pwd`";)
+          echo "creating Symlink to currently installed nifi"
           unlink {{BASENIFIHOMEPATH}}/current_nifi;
-          dzdo ln -s {{BASENIFIHOMEPATH}}/${NIFIDownload_Dirname} {{BASENIFIHOMEPATH}}/current_nifi;
+          dzdo ln -s {{BASENIFIHOMEPATH}}/${ZKDownload_Dirname} {{BASENIFIHOMEPATH}}/current_nifi;
           dzdo chown -R nifi:apache-admin {{BASENIFIHOMEPATH}}/current_nifi;
-          echo "*********************END of nifi_Upgrade function*********************";
-      InstanceIds:
-        - '{{ec2instanceidplaceholder}}'
-      DocumentName: AWS-RunShellScript
-    description: upgrading the current NiFi
+          echo "Copying varlibconf"
+          aws s3 cp {{varlibconf}} /var/lib/nifi/conf/ --recursive;
+          (cd /var/lib/nifi/conf/; mv /var/lib/nifi/conf /var/lib/nifi/conf_`date '+%Y_%N'`;)
+          dzdo chown -R nifi:apache-admin /var/lib/nifi/;
+          echo "*********************END of fresh_installZK function*********************";
+    description: fresh_installZK step for installing for first time on this server
     timeoutSeconds: 150
-    nextStep: nifi_flowfileupdate
+    nextStep: certs_prep_NIFI
     isCritical: false
-  - name: nifi_flowfileupdate
+  - name: certs_prep_NIFI
     action: 'aws:runCommand'
     inputs:
       DocumentName: AWS-RunShellScript
@@ -167,41 +247,70 @@ mainSteps:
         - '{{ec2instanceidplaceholder}}'
       Parameters:
         commands: |-
-          echo "*********************Initiating nifi_flowfileupdate function*********************";
-          echo "Backing up flow file"
-          flowxml_path=`cat {{BASENIFIHOMEPATH}}/current_nifi/conf/nifi.properties | grep 'nifi.flow.configuration.file' | cut -d '=' -f 2`;
-          flowxml_dir=`dirname ${flowxml_path}`;
-          dzdo cp ${flowxml_path} ${flowxml_dir}/bkp_flow.xml.gz_`date '+%m-%d-%Y'`;
-          echo "Updating flow file to with newer version";
-          (cd ${flowxml_dir}; gunzip ${flowxml_path};)
-          sed -i "s/>$oldnfversion</>$newnfversion</g" ${flowxml_dir}/flow.xml;
-          (cd ${flowxml_dir}; gzip ${flowxml_dir}/flow.xml;)
-          echo "Updated flow file and gziped it back";
-          echo "*********************END of nifi_flowfileupdate function*********************";
-    description: Flowfile update.
+          dzdo cp {{BASENIFIHOMEPATH}}/certs_`date '+%Y'`/temp/${HOSTNAME}.jks {{BASENIFIHOMEPATH}}/security/pki/nifi.jks;
+          dzdo chmod -R 755 {{BASENIFIHOMEPATH}}/security/pki;
+          default_nifi_jks={{BASENIFIHOMEPATH}}/security/pki/nifi.jks;
+          echo "checking for cert password and extracting it"
+          new_password=`cat {{BASENIFIHOMEPATH}}/current_nifi/conf/nifi.properties | grep 'nifi.security.truststorePasswd' | cut -d= -f2`;
+          current_password=`cat  {{BASENIFIHOMEPATH}}/certs_\`date '+%Y'\`/temp/DELETEME.txt`;
+          current_pwdfile={{BASENIFIHOMEPATH}}/certs_`date '+%Y'`/temp/DELETEME.txt;
+          (echo "${new_password}" >{{BASENIFIHOMEPATH}}/certs_`date '+%Y'`/temp/new_DELETEME.txt);
+          new_pwdfile={{BASENIFIHOMEPATH}}/certs_`date '+%Y'`/temp/new_DELETEME.txt
+          echo "Building nifi.jks file with new password"
+          keytool -storepasswd -new ${new_password} -keystore ${default_nifi_jks}  -storepass:file ${current_pwdfile};
+          keytool -keypasswd -keypass:file ${current_pwdfile}  -new ${new_password} -alias ${HOSTNAME_t} -keystore ${default_nifi_jks} -storepass:file ${new_pwdfile};
+    description: Prepping up the certs on NiFi server
     timeoutSeconds: 150
-    nextStep: nf_asService
+    nextStep: createNFKeytabs
     isCritical: false
-  - name: nf_asService
+  - name: createNFKeytabs
     action: 'aws:runCommand'
-    description: ' Creating NiFi as Service'
+    description: ' Starting Zk Service'
     inputs:
       DocumentName: AWS-RunShellScript
       InstanceIds:
         - '{{ec2instanceidplaceholder}}'
       Parameters:
         commands: |-
-          echo "*********************Initiating nf_asService*********************";
-          dzdo sh {{BASENIFIHOMEPATH}}/current_nifi/bin/nifi.sh install
-          echo "Created NiFi as service under /etc/init.d";
-          sed -i 's/^NIFI_HOME=.*$/NIFI_HOME={{BASENIFIHOMEPATH}}\/current_nifi/g' /etc/init.d/nifi
-          echo "*********************End of nf_asService*********************";
+          echo "*********************Initiating createNFKeytabs*********************";
+          #Creating NiFi Keytab
+          echo "creating  NiFi keytabs"
+          dzdo cd /opt/kerberos_Creationfiles;
+          (dzdo cd /opt/kerberos_Creationfiles ; dzdo sh /opt/kerberos_Creationfiles/bias-create-svc-user_headless.sh /etc/security/keytabs/nifi.keytab "nifi/@DS.DTVENG.NET";)
+          (dzdo cd /opt/kerberos_Creationfiles ; dzdo sh /opt/kerberos_Creationfiles/bias-create-svc-user.sh /etc/security/keytabs/nifi.service.keytab "nifi/${HOSTNAME}@DS.DTVENG.NET";)
+          (dzdo cd /opt/kerberos_Creationfiles ; dzdo sh /opt/kerberos_Creationfiles/bias-create-svc-user.sh /etc/security/keytabs/spnego.service.keytab "HTTP/${HOSTNAME}@DS.DTVENG.NET";)
+          # Permission for keytabs
+          dzdo chmod 754 /etc/security/keytabs;
+          dzdo chown -R  nifi:apache-admin /etc/security/keytabs/nifi.keytab;
+          dzdo chmod 744 /etc/security/keytabs/nifi.keytab;
+          dzdo chmod 744 /etc/security/keytabs/nifi.service.keytab;
+          dzdo chmod 744 /etc/security/keytabs/spnego.service.keytab;
+          dzdo chown -R  nifi:apache-admin /etc/security/keytabs/nifi*keytab;
+          dzdo ls -lart /etc/security/keytabs;
+          echo "*********************End of createZKKeytabs*********************";
+    timeoutSeconds: 150
+    nextStep: zk_asService
+    isCritical: false
+  - name: zk_asService
+    action: 'aws:runCommand'
+    description: ' Starting nf Service'
+    inputs:
+      DocumentName: AWS-RunShellScript
+      InstanceIds:
+        - '{{ec2instanceidplaceholder}}'
+      Parameters:
+        commands: |-
+          echo "*********************Initiating nf_asService function*********************";
+          dzdo sh {{BASENIFIHOMEPATH}}/current_nifi/bin/nifi.sh install;
+          SVC_FILE=/etc/init.d/nifi;
+          sed -i 's/^.*NIFI_HOME=.*$/NIFI_HOME=\/opt\/nifi\/current_nifi/' ${SVC_FILE} ;
+          echo "*********************END of nf_asService function*********************";
     timeoutSeconds: 150
     nextStep: startNFService
     isCritical: false
   - name: startNFService
     action: 'aws:runCommand'
-    description: ' Starting NF Service'
+    description: ' Starting NiFi Service'
     inputs:
       DocumentName: AWS-RunShellScript
       InstanceIds:
@@ -209,13 +318,22 @@ mainSteps:
       Parameters:
         commands: |-
           echo "*********************Initiating startNFService*********************";
-          dzdo service zookeeper start;
+          dzdo service nifi start;
           if [[ ${?} -eq 0 ]];
           then
-          echo "NiFi Service is started";
+          echo "Started zookeeper";
           else
-          echo "NiFi Service has issue, please check the logs";
+          echo "Unable to start zookeeper at this time.";
+          echo "Please configure zookeeper as service.";
           fi
+          dzdo chown -R nifi:apache-admin /var/run/nifi;
+          dzdo chown -R nifi:apache-admin {{BASENIFIHOMEPATH}};
+          dzdo chown -R nifi:apache-admin /var/log/nifi;
+          dzdo chown -R nifi:apache-admin /var/lib/nifi;
+          dzdo chmod -R 755 /var/run/nifi;
+          dzdo chmod -R 755 /var/log/nifi;
+          dzdo chmod -R 755 /opt/nifi;
+          dzdo chmod -R 755 /var/lib/nifi;
           echo "*********************End of startNFService*********************";
     timeoutSeconds: 150
     nextStep: success_failure_MSG
@@ -232,10 +350,11 @@ mainSteps:
           dzdo  netstat -plten | grep  {{NIFIPORT}};
           if [[ ${?} -eq 0 ]];
           then
-          echo "NiFi is running";
+          echo "NiFi is running"
           else
-          echo "NiFi might got Upgraded, but there is trouble running the process";
-          echo "Verify logs manually and  start the process.";
+          echo "NiFi might got installed, but there is trouble running the process";
+          echo "Verify Logs manually and  start the process."
+          exit 1;
           fi
           echo "*********************END of success_failure_MSG function*********************";
     description: ' Printing Success Message'

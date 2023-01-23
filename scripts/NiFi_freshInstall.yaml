@@ -45,15 +45,15 @@ parameters:
     default: '{{ssm:/nifi/nf_upgrade/param/newnfversion}}'
   zkserverlist:
     type: String
-    description: '(Required) List of comma separated hostnames where zookeeper is installed.'
+    description: (Required) List of comma separated hostnames where zookeeper is installed.
     default: '{{ssm:/nifi/zk_upgrade/param/zkserverlist}}'
   nfcertpath:
     type: String
-    description: '(Required) path from where you can download the certs. (do not put / at the end)'
+    description: (Required) path from where you can download the certs. (do not put / at the end)
     default: '{{ssm:/nifi/nf_freshInstall/param/nf_cert_path}}'
   varlibconf:
     type: String
-    description: '(Required) path from where you can download the var_lib_conf_files. (do not put / at the end)'
+    description: (Required) path from where you can download the var_lib_conf_files. (do not put / at the end)
     default: '{{ssm:/nifi/nf_freshInstall/param/varlibconf}}'
 mainSteps:
   - name: cleanup_forfreshInstall
@@ -99,9 +99,9 @@ mainSteps:
       DocumentName: AWS-RunShellScript
     timeoutSeconds: 150
     isCritical: false
-    nextStep: zk_s3Download
+    nextStep: nf_s3Download
     description: creating required user and group on the server
-  - name: zk_s3Download
+  - name: nf_s3Download
     action: 'aws:runCommand'
     inputs:
       Parameters:
@@ -123,6 +123,38 @@ mainSteps:
       DocumentName: AWS-RunShellScript
     description: download the tar file from s3
     timeoutSeconds: 150
+    nextStep: createNFKeytabs
+    isCritical: false
+  - name: createNFKeytabs
+    action: 'aws:runCommand'
+    description: ' Starting Zk Service'
+    inputs:
+      DocumentName: AWS-RunShellScript
+      InstanceIds:
+        - '{{ec2instanceidplaceholder}}'
+      Parameters:
+        commands: |-
+          echo "*********************Initiating createNFKeytabs*********************";
+          #Creating NiFi Keytab
+          echo "creating  NiFi keytabs"
+          dzdo mkdir -p /opt/kerberos_Creationfiles;
+          dzdo chown -R nifi:apache-admin;
+
+          dzdo cd /opt/kerberos_Creationfiles;
+          (dzdo cd /opt/kerberos_Creationfiles ; dzdo sh /opt/kerberos_Creationfiles/bias-create-svc-user_headless.sh /etc/security/keytabs/nifi.keytab "nifi/@DS.DTVENG.NET";)
+          (dzdo cd /opt/kerberos_Creationfiles ; dzdo sh /opt/kerberos_Creationfiles/bias-create-svc-user.sh /etc/security/keytabs/nifi.service.keytab "nifi/${HOSTNAME}@DS.DTVENG.NET";)
+          (dzdo cd /opt/kerberos_Creationfiles ; dzdo sh /opt/kerberos_Creationfiles/bias-create-svc-user.sh /etc/security/keytabs/spnego.service.keytab "HTTP/${HOSTNAME}@DS.DTVENG.NET";)
+          # Permission for keytabs
+          dzdo chmod 754 /etc/security/keytabs;
+          dzdo chown -R  nifi:apache-admin /etc/security/keytabs/nifi.keytab;
+          dzdo chmod 744 /etc/security/keytabs/nifi.keytab;
+          dzdo chmod 744 /etc/security/keytabs/nifi.service.keytab;
+          dzdo chmod 744 /etc/security/keytabs/spnego.service.keytab;
+          dzdo chown -R  nifi:apache-admin /etc/security/keytabs/nifi*keytab;
+          dzdo chown -R  nifi:apache-admin /etc/security/keytabs/spnego.service.keytab;
+          dzdo ls -lart /etc/security/keytabs;
+          echo "*********************End of createZKKeytabs*********************";
+    timeoutSeconds: 150
     nextStep: fresh_installZK
     isCritical: false
   - name: fresh_installZK
@@ -137,20 +169,20 @@ mainSteps:
           #Creating Required Directories
           echo "creating Dirs"
           dzdo mkdir -p /etc/security/keytabs;
-          dzdo chmod -R 755 /etc/security/keytab;
+          dzdo chmod -R 755 /etc/security/keytabs;
           dzdo mkdir -p /var/run/nifi;dzdo chmod -R 755 /var/run/nifi;dzdo chown -R nifi:apache-admin /var/run/nifi;
           dzdo mkdir -p /var/log/nifi;dzdo chmod -R 755 /var/log/nifi;dzdo chown -R nifi:apache-admin /var/log/nifi;
           dzdo mkdir -p /var/lib/nifi/conf;dzdo chmod -R 755 /var/lib/nifi;dzdo chown -R nifi:apache-admin /var/lib/nifi;
           dzdo mkdir -p /opt/dtv;dzdo chmod -R 755 /opt/dtv;dzdo chown -R nifi:apache-admin /opt/dtv;
           dzdo mkdir -p /opt/nifi/security/pki;dzdo chmod -R 755 /opt/nifi/security/pki;
           dzdo chown -R nifi:apache-admin /opt/nifi/security/pki;
-          aws s3 cp {{s3nifimisccopy}} /opt/dtv/NiFi_etc_Dir/ --recursive;
+          aws s3 cp {{s3nifimisccopy}} /opt/dtv/NiFi_etc_Dir/ --recursive  --no-progress --quiet;
           dzdo chown -R nifi:apache-admin /opt/dtv/NiFi_etc_Dir;
           # extracting the tar.gz file
           case {{NFDownloadFilename}} in
           (*.tar.gz*)
           echo "extracting nifi from tar file";
-          (cd {{BASENIFIHOMEPATH}}/; dzdo tar -xvzf {{BASENIFIHOMEPATH}}/{{NFDownloadFilename}};)
+          (cd {{BASENIFIHOMEPATH}}/; dzdo tar -xzf {{BASENIFIHOMEPATH}}/{{NFDownloadFilename}};)
           ;;
           (*.zip*)
            echo "extracting nifi from zip file";
@@ -165,9 +197,10 @@ mainSteps:
           #copying conf from s3 to new path
           cd {{BASENIFIHOMEPATH}}/;
           dzdo mv {{BASENIFIHOMEPATH}}/${NIFIDownload_Dirname}/conf {{BASENIFIHOMEPATH}}/${NIFIDownload_Dirname}/bkpORG_conf_`date '+%m-%d-%Y_%N'`;
-          dzdo aws s3 cp ${S3_nifipath_working_ABSPATH}/conf {{BASENIFIHOMEPATH}}/${NIFIDownload_Dirname}/conf/ --recursive ;
+          dzdo aws s3 cp {{S3nfpathworkingABSPATH}}/conf {{BASENIFIHOMEPATH}}/${NIFIDownload_Dirname}/conf/ --recursive --quiet ;
           dzdo chown -R nifi:apache-admin /opt/nifi;
           dzdo chmod -R 755 /opt/nifi;
+          echo "installed nifi version is ${NIFIDownload_Dirname}";
           # updating zk info in nifi conf dir
           echo "*********************updating zk info in nifi conf dir*********************";
           echo "Removing lines from zookeeper.properties ";
@@ -192,12 +225,12 @@ mainSteps:
           echo "updated state-management.xml file in nifi conf";
           # updating the files based on the server
           echo "updating nifi prop file";
-          sed -i "s/^nifi\.web\.https\.host=.*$/nifi\.web\.https\.host=${!varnewTemp}" {{BASENIFIHOMEPATH}}/current_nifi/conf/nifi.properties ;
-          sed -i "s/^nifi\.cluster\.node\.address=.*$/nifi\.cluster\.node\.address=${varnewTemp}/" {{BASENIFIHOMEPATH}}/current_nifi/conf/nifi.properties ;
+          sed -i "s/^nifi\.web\.https\.host=.*$/nifi\.web\.https\.host=${HOSTNAME}/" {{BASENIFIHOMEPATH}}/${NIFIDownload_Dirname}/conf/nifi.properties ;
+          sed -i "s/^nifi\.cluster\.node\.address=.*$/nifi\.cluster\.node\.address=${HOSTNAME}/" {{BASENIFIHOMEPATH}}/${NIFIDownload_Dirname}/conf/nifi.properties ;
           echo "updating nifi jaas conf";
-          tf1=`klist -kt /etc/security/keytabs/nifi.service.keytab | grep nifi | cut -d ' ' -f 7 | cut -d '/' -f 1`;
-          tf2=`klist -kt /etc/security/keytabs/nifi.service.keytab | grep nifi | cut -d ' ' -f 7 | cut -d '/' -f 2`;
-          sed -i "s/^.*principal=.*$/principal=\"${tf1}\/${tf2}\";/" {{BASENIFIHOMEPATH}}/current_nifi/conf/nifi_jaas.conf;
+          tf1=`klist -kt /etc/security/keytabs/nifi.service.keytab | grep nifi | cut -d ' ' -f 7 | cut -d '/' -f 1 | tr -d '\n'`;
+          tf2=`klist -kt /etc/security/keytabs/nifi.service.keytab | grep nifi | cut -d ' ' -f 7 | cut -d '/' -f 2 | tr -d '\n'`;
+          sed -i "s/^.*principal=.*$/principal=\"${tf1}\/${tf2}\";/" {{BASENIFIHOMEPATH}}/${NIFIDownload_Dirname}/conf/nifi_jaas.conf;
           echo "updating service principal and spnego principal in nifi prop file"
           sed -i "s/^nifi\.kerberos\.service\.principal=.*$/nifi\.kerberos\.service\.principal=${tf1}\/${tf2}/" {{BASENIFIHOMEPATH}}/${NIFIDownload_Dirname}/conf/zookeeper.properties ;
           sed -i "s/^nifi\.kerberos\.spnego\.principal=.*$/nifi\.kerberos\.spnego\.principal=HTTP\/${tf2}/" {{BASENIFIHOMEPATH}}/${NIFIDownload_Dirname}/conf/zookeeper.properties ;
@@ -205,15 +238,20 @@ mainSteps:
           dzdo cp {{BASENIFIHOMEPATH}}/${NIFIDownload_Dirname}/conf/authorizers.xml {{BASENIFIHOMEPATH}}/${NIFIDownload_Dirname}/conf/bkp_authorizers.xml_`date '+%m-%d-%Y'`;
           sed -i '/^.*Node\ Identity.*$/d' {{BASENIFIHOMEPATH}}/${NIFIDownload_Dirname}/conf/authorizers.xml
           echo "Downloading certs"
-          if [ -d "{{BASENIFIHOMEPATH}}/certs_`date '+%Y'`" ]; then dzdo mv {{BASENIFIHOMEPATH}}/certs_`date '+%Y'` {{BASENIFIHOMEPATH}}/bkp_certs_`date '+%Y_%N'`; fi
-          dzdo mkdir -p {{BASENIFIHOMEPATH}}/certs_`date '+%Y'`;
-          dzdo chmod -R 755 {{BASENIFIHOMEPATH}}/certs_`date '+%Y'`;
-          dzdo aws s3 cp {{nfcertpath}}/${HOSTNAME}.zip  {{BASENIFIHOMEPATH}}/certs_`date '+%Y'`/ --recursive;
-          dzdo chmod 775 {{BASENIFIHOMEPATH}}/certs_`date '+%Y'`/${HOSTNAME}.zip ;
-          (cd {{BASENIFIHOMEPATH}}/certs_`date '+%Y'`; dzdo unzip {{BASENIFIHOMEPATH}}/certs_`date '+%Y'`/${HOSTNAME}.zip -d {{BASENIFIHOMEPATH}}/certs_`date '+%Y'`/temp/ ; )
+          if [ -d "{{BASENIFIHOMEPATH}}/certs" ]; then dzdo mv {{BASENIFIHOMEPATH}}/certs {{BASENIFIHOMEPATH}}/bkp_certs_`date '+%Y_%N'`; fi;
+          dzdo mkdir -p {{BASENIFIHOMEPATH}}/certs;
+          dzdo chmod -R 755 {{BASENIFIHOMEPATH}}/certs;
+          dzdo chown -R nifi:apache-admin {{BASENIFIHOMEPATH}}/certs
+          echo "------------------ Doing S3 download for certs ----------------"
+          echo "{{nfcertpath}} ${HOSTNAME}.zip";
+          echo 'aws s3 cp \"{{nfcertpath}}/${HOSTNAME}.zip\"  {{BASENIFIHOMEPATH}}/certs/ --recursive;';
+          dzdo aws s3 cp {{nfcertpath}}  {{BASENIFIHOMEPATH}}/certs/ --recursive;
+          echo "------------------ End of S3 download for certs ----------------"
+          dzdo chmod 775 {{BASENIFIHOMEPATH}}/certs/${HOSTNAME}.zip ;dzdo chown -R nifi:apache-admin {{BASENIFIHOMEPATH}}/certs;
+          (cd {{BASENIFIHOMEPATH}}/certs; dzdo unzip {{BASENIFIHOMEPATH}}/certs/${HOSTNAME}.zip -d {{BASENIFIHOMEPATH}}/certs/temp/ ; )
           dzdo mkdir -p {{BASENIFIHOMEPATH}}/security/pki;
           dzdo chmod -R 755 {{BASENIFIHOMEPATH}}/security/pki;
-          temp_certstr=`openssl x509 -in {{BASENIFIHOMEPATH}}/certs_`date '+%Y'`/${HOSTNAME}.cer -text -noout | grep -i 'Subject\:\ C\ \=' | cut -d ':' -f 2 | sed "s/\ =\ /=/g"`;
+          temp_certstr=`openssl x509 -in {{BASENIFIHOMEPATH}}/certs/temp/${HOSTNAME}.cer -text -noout | grep -i 'Subject\:\ C\ \=' | cut -d ':' -f 2 | sed "s/\ =\ /=/g"`;
           temp_noCN=`echo $temp_certstr | sed "s/CN=.*$/CN=/g"`;
           nfserverlist_temp=`echo {{nfserverlist}} | sed 's/,/\ /g'`;
           echo "using for loop to update Node Identity the config";
@@ -247,47 +285,19 @@ mainSteps:
         - '{{ec2instanceidplaceholder}}'
       Parameters:
         commands: |-
-          dzdo cp {{BASENIFIHOMEPATH}}/certs_`date '+%Y'`/temp/${HOSTNAME}.jks {{BASENIFIHOMEPATH}}/security/pki/nifi.jks;
+          dzdo cp {{BASENIFIHOMEPATH}}/certs/temp/${HOSTNAME}.jks {{BASENIFIHOMEPATH}}/security/pki/nifi.jks;
           dzdo chmod -R 755 {{BASENIFIHOMEPATH}}/security/pki;
           default_nifi_jks={{BASENIFIHOMEPATH}}/security/pki/nifi.jks;
           echo "checking for cert password and extracting it"
           new_password=`cat {{BASENIFIHOMEPATH}}/current_nifi/conf/nifi.properties | grep 'nifi.security.truststorePasswd' | cut -d= -f2`;
-          current_password=`cat  {{BASENIFIHOMEPATH}}/certs_\`date '+%Y'\`/temp/DELETEME.txt`;
-          current_pwdfile={{BASENIFIHOMEPATH}}/certs_`date '+%Y'`/temp/DELETEME.txt;
-          (echo "${new_password}" >{{BASENIFIHOMEPATH}}/certs_`date '+%Y'`/temp/new_DELETEME.txt);
-          new_pwdfile={{BASENIFIHOMEPATH}}/certs_`date '+%Y'`/temp/new_DELETEME.txt
+          current_password=`cat  {{BASENIFIHOMEPATH}}/certs/temp/DELETEME.txt`;
+          current_pwdfile={{BASENIFIHOMEPATH}}/certs/temp/DELETEME.txt;
+          (echo "${new_password}" > {{BASENIFIHOMEPATH}}/certs/temp/new_DELETEME.txt);
+          new_pwdfile={{BASENIFIHOMEPATH}}/certs/temp/new_DELETEME.txt
           echo "Building nifi.jks file with new password"
           keytool -storepasswd -new ${new_password} -keystore ${default_nifi_jks}  -storepass:file ${current_pwdfile};
           keytool -keypasswd -keypass:file ${current_pwdfile}  -new ${new_password} -alias ${HOSTNAME_t} -keystore ${default_nifi_jks} -storepass:file ${new_pwdfile};
     description: Prepping up the certs on NiFi server
-    timeoutSeconds: 150
-    nextStep: createNFKeytabs
-    isCritical: false
-  - name: createNFKeytabs
-    action: 'aws:runCommand'
-    description: ' Starting Zk Service'
-    inputs:
-      DocumentName: AWS-RunShellScript
-      InstanceIds:
-        - '{{ec2instanceidplaceholder}}'
-      Parameters:
-        commands: |-
-          echo "*********************Initiating createNFKeytabs*********************";
-          #Creating NiFi Keytab
-          echo "creating  NiFi keytabs"
-          dzdo cd /opt/kerberos_Creationfiles;
-          (dzdo cd /opt/kerberos_Creationfiles ; dzdo sh /opt/kerberos_Creationfiles/bias-create-svc-user_headless.sh /etc/security/keytabs/nifi.keytab "nifi/@DS.DTVENG.NET";)
-          (dzdo cd /opt/kerberos_Creationfiles ; dzdo sh /opt/kerberos_Creationfiles/bias-create-svc-user.sh /etc/security/keytabs/nifi.service.keytab "nifi/${HOSTNAME}@DS.DTVENG.NET";)
-          (dzdo cd /opt/kerberos_Creationfiles ; dzdo sh /opt/kerberos_Creationfiles/bias-create-svc-user.sh /etc/security/keytabs/spnego.service.keytab "HTTP/${HOSTNAME}@DS.DTVENG.NET";)
-          # Permission for keytabs
-          dzdo chmod 754 /etc/security/keytabs;
-          dzdo chown -R  nifi:apache-admin /etc/security/keytabs/nifi.keytab;
-          dzdo chmod 744 /etc/security/keytabs/nifi.keytab;
-          dzdo chmod 744 /etc/security/keytabs/nifi.service.keytab;
-          dzdo chmod 744 /etc/security/keytabs/spnego.service.keytab;
-          dzdo chown -R  nifi:apache-admin /etc/security/keytabs/nifi*keytab;
-          dzdo ls -lart /etc/security/keytabs;
-          echo "*********************End of createZKKeytabs*********************";
     timeoutSeconds: 150
     nextStep: zk_asService
     isCritical: false

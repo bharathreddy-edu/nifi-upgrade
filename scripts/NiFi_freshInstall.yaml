@@ -158,9 +158,9 @@ mainSteps:
           dzdo ls -lart /etc/security/keytabs;
           echo "*********************End of createZKKeytabs*********************";
     timeoutSeconds: 150
-    nextStep: fresh_installZK
+    nextStep: fresh_installNF
     isCritical: false
-  - name: fresh_installZK
+  - name: fresh_installNF
     action: 'aws:runCommand'
     inputs:
       DocumentName: AWS-RunShellScript
@@ -197,6 +197,7 @@ mainSteps:
           esac
           # extracting dir name from filename
           NIFIDownload_Dirname=`echo {{NFDownloadFilename}} |  cut -d '-' -f 1-2`;
+          echo "NiFiDownload_Dirname=${NIFIDownload_Dirname}";
           #copying conf from s3 to new path
           cd {{BASENIFIHOMEPATH}}/;
           dzdo mv {{BASENIFIHOMEPATH}}/${NIFIDownload_Dirname}/conf {{BASENIFIHOMEPATH}}/${NIFIDownload_Dirname}/bkpORG_conf_`date '+%m-%d-%Y_%N'`;
@@ -208,18 +209,19 @@ mainSteps:
           echo "*********************updating zk info in nifi conf dir*********************";
           echo "Removing lines from zookeeper.properties ";
           sed -i '/server\.[0-9]=/d' {{BASENIFIHOMEPATH}}/${NIFIDownload_Dirname}/conf/zookeeper.properties ;
+          echo "NIFIDownload_Dirname=${NIFIDownload_Dirname}";
           echo " zookeeper server list = {{zkserverlist}}";
           zkserverList_temp=`echo {{zkserverlist}} | sed 's/,/\ /g'`;
           echo "using for loop to update the config";
-          varzkcount=0;
+          varzkcount=0;temp1zkstr="";
           for i in ${zkserverList_temp};
           do
           varzkcount=$((varzkcount + 1));
+          temp1zkstr+="${i}":2181,;
           echo "server.$varzkcount=${i}:2181" >> {{BASENIFIHOMEPATH}}/${NIFIDownload_Dirname}/conf/zookeeper.properties ;
           done;
           #updating zk connection string in nifi.properties
-          temp1zkstr=`echo ${zkserverlist} | sed 's/,/:2181,/g'`;
-          tempfnzkstr=`echo ${temp1zkstr} | sed 's/$/:2181/g'`;
+          tempfnzkstr=`echo ${temp1zkstr} | sed 's/.$//'`;
           sed -i "s/^nifi\.zookeeper\.connect\.string=.*$/nifi\.zookeeper\.connect\.string=${tempfnzkstr}/" {{BASENIFIHOMEPATH}}/${NIFIDownload_Dirname}/conf/nifi.properties;
           echo "updated zookeeper connection string in nifi.properties file";
           sed -ir "s/<property\ name=\"Connect\ String\".*$/\<property\ name=\"Connect\ String\"\>${tempfnzkstr}\<\/property\>/" {{BASENIFIHOMEPATH}}/${NIFIDownload_Dirname}/conf/state-management.xml;
@@ -227,16 +229,20 @@ mainSteps:
           echo "*********************update done for zk info in nifi conf dir*********************";
           echo "updated state-management.xml file in nifi conf";
           # updating the files based on the server
+          echo "NIFIDownload_Dirname=${NIFIDownload_Dirname}";
           echo "updating nifi prop file";
           sed -i "s/^nifi\.web\.https\.host=.*$/nifi\.web\.https\.host=${HOSTNAME}/" {{BASENIFIHOMEPATH}}/${NIFIDownload_Dirname}/conf/nifi.properties ;
           sed -i "s/^nifi\.cluster\.node\.address=.*$/nifi\.cluster\.node\.address=${HOSTNAME}/" {{BASENIFIHOMEPATH}}/${NIFIDownload_Dirname}/conf/nifi.properties ;
           echo "updating nifi jaas conf";
-          tf1=`klist -kt /etc/security/keytabs/nifi.service.keytab | grep nifi | cut -d ' ' -f 7 | cut -d '/' -f 1 | tr -d '\n'`;
-          tf2=`klist -kt /etc/security/keytabs/nifi.service.keytab | grep nifi | cut -d ' ' -f 7 | cut -d '/' -f 2 | tr -d '\n'`;
+          tf1=`klist -kt /etc/security/keytabs/nifi.service.keytab | grep 'nifi/' | awk -F ' ' '{print $4}' | cut -d '/' -f 1 | tr -d '\n'`;
+          tf2=`klist -kt /etc/security/keytabs/nifi.service.keytab | grep 'nifi/' | awk -F ' ' '{print $4}' | cut -d '/' -f 2 | tr -d '\n'`;
+          echo "tf1=$tf1";
+          echo "tf2=$tf2";
+          echo "NIFIDownload_Dirname=${NIFIDownload_Dirname}";
           sed -i "s/^.*principal=.*$/principal=\"${tf1}\/${tf2}\";/" {{BASENIFIHOMEPATH}}/${NIFIDownload_Dirname}/conf/nifi_jaas.conf;
           echo "updating service principal and spnego principal in nifi prop file"
-          sed -i "s/^nifi\.kerberos\.service\.principal=.*$/nifi\.kerberos\.service\.principal=${tf1}\/${tf2}/" {{BASENIFIHOMEPATH}}/${NIFIDownload_Dirname}/conf/zookeeper.properties ;
-          sed -i "s/^nifi\.kerberos\.spnego\.principal=.*$/nifi\.kerberos\.spnego\.principal=HTTP\/${tf2}/" {{BASENIFIHOMEPATH}}/${NIFIDownload_Dirname}/conf/zookeeper.properties ;
+          sed -i "s/^nifi\.kerberos\.service\.principal=.*$/nifi\.kerberos\.service\.principal=${tf1}\/${tf2}/" {{BASENIFIHOMEPATH}}/${NIFIDownload_Dirname}/conf/nifi.properties ;
+          sed -i "s/^nifi\.kerberos\.spnego\.principal=.*$/nifi\.kerberos\.spnego\.principal=HTTP\/${tf2}/" {{BASENIFIHOMEPATH}}/${NIFIDownload_Dirname}/conf/nifi.properties ;
           sed -i "s/^.*\"Root\ Node\".*$/\<property\ name=\"Root\ Node\"\>\/nifi_current\<\/property\>/" {{BASENIFIHOMEPATH}}/${NIFIDownload_Dirname}/conf/state-management.xml ;
           dzdo cp {{BASENIFIHOMEPATH}}/${NIFIDownload_Dirname}/conf/authorizers.xml {{BASENIFIHOMEPATH}}/${NIFIDownload_Dirname}/conf/bkp_authorizers.xml_`date '+%m-%d-%Y'`;
           sed -i '/^.*Node\ Identity.*$/d' {{BASENIFIHOMEPATH}}/${NIFIDownload_Dirname}/conf/authorizers.xml
@@ -255,7 +261,9 @@ mainSteps:
           dzdo mkdir -p {{BASENIFIHOMEPATH}}/security/pki;
           dzdo chmod -R 755 {{BASENIFIHOMEPATH}}/security/pki;
           echo "performing openssl to get subject info"
-          temp_certstr=`openssl x509 -in {{BASENIFIHOMEPATH}}/certs/temp/${HOSTNAME}.cer -text -noout | grep -i 'Subject\:\ C\ \=' | cut -d ':' -f 2 | sed "s/\ =\ /=/g"`;
+          temp_certstr=`openssl x509 -in {{BASENIFIHOMEPATH}}/certs/temp/${HOSTNAME}.cer -text -noout | grep -i 'Subject:' | cut -d ':' -f 2 | sed "s/\ =\ /=/g"`;
+          echo "subject info temp_cert is $temp_certstr ";
+          echo "openssl x509 -in {{BASENIFIHOMEPATH}}/certs/temp/${HOSTNAME}.cer";
           temp_noCN=`echo $temp_certstr | sed "s/CN=.*$/CN=/g"`;
           nfserverlist_temp=`echo {{nfserverlist}} | sed 's/,/\ /g'`;
           echo "printing cert subject info $temp_noCN";
@@ -266,12 +274,12 @@ mainSteps:
           varnfcount=$((varnfcount + 1));
           temp_val=`echo "     <property name=\"Node Identity $varnfcount\">${temp_noCN}${nfhost}</property>"`;
           echo "adding this ${temp_val} for node identity";
-          sed -i "/^.<\/authorizer>$/i ${temp_val}" authorizers.xml;
+          sed -i "/^.<\/authorizer>$/i ${temp_val}" {{BASENIFIHOMEPATH}}/${NIFIDownload_Dirname}/conf/authorizers.xml;
           done;
           (cd {{BASENIFIHOMEPATH}}/${ZKDownload_Dirname}/;echo "current dir : `pwd`";)
           echo "creating Symlink to currently installed nifi"
           unlink {{BASENIFIHOMEPATH}}/current_nifi;
-          dzdo ln -s {{BASENIFIHOMEPATH}}/${ZKDownload_Dirname} {{BASENIFIHOMEPATH}}/current_nifi;
+          dzdo ln -s {{BASENIFIHOMEPATH}}/${NIFIDownload_Dirname} {{BASENIFIHOMEPATH}}/current_nifi;
           dzdo chown -R nifi:apache-admin {{BASENIFIHOMEPATH}}/current_nifi;
           echo "Copying varlibconf"
           aws s3 cp {{varlibconf}} /var/lib/nifi/conf/ --recursive;
@@ -302,12 +310,12 @@ mainSteps:
           new_pwdfile={{BASENIFIHOMEPATH}}/certs/temp/new_DELETEME.txt
           echo "Building nifi.jks file with new password"
           keytool -storepasswd -new ${new_password} -keystore ${default_nifi_jks}  -storepass:file ${current_pwdfile};
-          keytool -keypasswd -keypass:file ${current_pwdfile}  -new ${new_password} -alias ${HOSTNAME_t} -keystore ${default_nifi_jks} -storepass:file ${new_pwdfile};
+          keytool -keypasswd -keypass:file ${current_pwdfile}  -new ${new_password} -alias ${HOSTNAME} -keystore ${default_nifi_jks} -storepass:file ${new_pwdfile};
     description: Prepping up the certs on NiFi server
     timeoutSeconds: 150
-    nextStep: zk_asService
+    nextStep: nf_asService
     isCritical: false
-  - name: zk_asService
+  - name: nf_asService
     action: 'aws:runCommand'
     description: ' Starting nf Service'
     inputs:
@@ -337,10 +345,10 @@ mainSteps:
           dzdo service nifi start;
           if [[ ${?} -eq 0 ]];
           then
-          echo "Started zookeeper";
+          echo "Started nifi";
           else
-          echo "Unable to start zookeeper at this time.";
-          echo "Please configure zookeeper as service.";
+          echo "Unable to start nifi at this time.";
+          echo "Please configure nifi as service.";
           fi
           dzdo chown -R nifi:apache-admin /var/run/nifi;
           dzdo chown -R nifi:apache-admin {{BASENIFIHOMEPATH}};

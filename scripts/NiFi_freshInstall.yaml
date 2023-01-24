@@ -55,6 +55,9 @@ parameters:
     type: String
     description: (Required) path from where you can download the var_lib_conf_files. (do not put / at the end)
     default: '{{ssm:/nifi/nf_freshInstall/param/varlibconf}}'
+  outputs3logbucket:
+    type: 'AWS::S3::Bucket::Name'
+    default: dtv-bigdatadl-nifilogs-dev-int
 mainSteps:
   - name: cleanup_forfreshInstall
     action: 'aws:runCommand'
@@ -251,9 +254,11 @@ mainSteps:
           (cd {{BASENIFIHOMEPATH}}/certs; dzdo unzip {{BASENIFIHOMEPATH}}/certs/${HOSTNAME}.zip -d {{BASENIFIHOMEPATH}}/certs/temp/ ; )
           dzdo mkdir -p {{BASENIFIHOMEPATH}}/security/pki;
           dzdo chmod -R 755 {{BASENIFIHOMEPATH}}/security/pki;
+          echo "performing openssl to get subject info"
           temp_certstr=`openssl x509 -in {{BASENIFIHOMEPATH}}/certs/temp/${HOSTNAME}.cer -text -noout | grep -i 'Subject\:\ C\ \=' | cut -d ':' -f 2 | sed "s/\ =\ /=/g"`;
           temp_noCN=`echo $temp_certstr | sed "s/CN=.*$/CN=/g"`;
           nfserverlist_temp=`echo {{nfserverlist}} | sed 's/,/\ /g'`;
+          echo "printing cert subject info $temp_noCN";
           echo "using for loop to update Node Identity the config";
           varnfcount=0;
           for nfhost in ${nfserverlist_temp};
@@ -273,6 +278,7 @@ mainSteps:
           (cd /var/lib/nifi/conf/; mv /var/lib/nifi/conf /var/lib/nifi/conf_`date '+%Y_%N'`;)
           dzdo chown -R nifi:apache-admin /var/lib/nifi/;
           echo "*********************END of fresh_installZK function*********************";
+      OutputS3BucketName: '{{outputs3logbucket}}'
     description: fresh_installZK step for installing for first time on this server
     timeoutSeconds: 150
     nextStep: certs_prep_NIFI

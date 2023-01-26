@@ -43,8 +43,8 @@ parameters:
     default: '{{ssm:/nifi/zk_upgrade/param/ZK_SERVER_COUNT}}'
   zkserverlist:
     type: String
-    description: '(Required) true, if you need to install zookeeper service on the server. false, if you dont want to install zookeeper service on the server.'
-    default: '{{ssm:/nifi/zk_upgrade/param/new_zkServer1}}'
+    description: '(Required)  Comma seperated list of hostnames, on which you will be installing zk service'
+    default: '{{ssm:/nifi/zk_upgrade/param/zkserverlist}}'
 mainSteps:
   - name: cleanup_forfreshInstall
     action: 'aws:runCommand'
@@ -200,6 +200,7 @@ mainSteps:
           echo "#Adding server info" >> {{BASEZOOKEEPERHOMEPATH}}/${ZKDownload_Dirname}/conf/zoo.cfg ;
           echo " zookeeper server list = {{zkserverlist}}";
           zkserverList_temp=`echo {{zkserverlist}} | sed 's/,/\ /g'`;
+          ddir=`cat /opt/zookeeper/current_zookeeper/bin/../conf/zoo.cfg | grep -i 'datadir=' | cut -d '=' -f 2`;
           echo "using for loop to update the config";
           varzkcount=0;
           for i in ${zkserverList_temp};
@@ -207,6 +208,7 @@ mainSteps:
           varzkcount=$((varzkcount + 1));
           echo "server.$varzkcount=${i}:2888:3888:participant" >> {{BASEZOOKEEPERHOMEPATH}}/${ZKDownload_Dirname}/conf/zoo.cfg ;
           echo "server.$varzkcount=${i}:2888:3888:participant" >> {{BASEZOOKEEPERHOMEPATH}}/${ZKDownload_Dirname}/conf/zoo.cfg.dynamic ;
+          if [[ "${HOSTNAME}" = "${i}" ]]; then echo "$varzkcount" > $ddir/myid; echo "myid file is added with $varzkcount as content into it"; fi ;
           done;
           echo "updating zk jaas conf"
           tf1=`klist -kt /etc/security/keytabs/zk.service.keytab | grep zookeeper | awk '{print $4}'  | cut -d '/' -f 1`;

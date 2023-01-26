@@ -31,7 +31,7 @@ parameters:
   NIFIPORT:
     type: String
     default: '{{ssm:/nifi/nf_upgrade/param/NIFI_PORT}}'
-    nfserverlist:
+  nfserverlist:
     type: String
     default: '{{ssm:/nifi/nf_upgrade/param/nfserverlist}}'
   oldnfversion:

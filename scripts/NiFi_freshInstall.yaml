@@ -40,6 +40,7 @@ parameters:
   oldnfversion:
     type: String
     default: '{{ssm:/nifi/nf_upgrade/param/oldnfversion}}'
+    description: ignore this.
   newnfversion:
     type: String
     default: '{{ssm:/nifi/nf_upgrade/param/newnfversion}}'
@@ -71,14 +72,16 @@ mainSteps:
           dzdo mkdir -p /tmp/cleanup/${temp_cdir};
           dzdo chmod -R 777 /tmp/cleanup;
           dzdo mv {{BASENIFIHOMEPATH}} /tmp/cleanup/${temp_cdir}/;
+          dzdo mkdir -p /tmp/cleanup/${temp_cdir}/varlibnifi/;
+          dzdo mv /var/lib/nifi  /tmp/cleanup/${temp_cdir}/varlibnifi/;
           echo "*********************END of cleanup_forfreshInstall function*********************";
       InstanceIds:
         - '{{ec2instanceidplaceholder}}'
     timeoutSeconds: 150
-    nextStep: userCreation
+    nextStep: user_dirCreation
     isCritical: false
     description: Clean-up script to make sure we can rerun the fresh installation
-  - name: userCreation
+  - name: user_dirCreation
     action: 'aws:runCommand'
     inputs:
       Parameters:
@@ -90,12 +93,35 @@ mainSteps:
           groupadd apache-admin;
           usermod -a -G apache-admin nifi;
           # Creating nifi dir and nifi dir
+          echo "creating directories and providing permissions";
           dzdo mkdir -p {{BASENIFIHOMEPATH}};dzdo chown -R nifi:apache-admin {{BASENIFIHOMEPATH}};
           # Creating /var/run/nifi for nifi
           dzdo mkdir -p /var/run/nifi; dzdo chmod -R 755 /var/run/nifi; dzdo chown -R nifi:apache-admin /var/run/nifi;
-          dzdo mkdir -p /var/log/nifi; dzdo chmod -R 755 /var/log/nifi; dzdo chown -R nifi:apache-admin /var/log/nifi;
           dzdo mkdir -p /var/lib/nifi/conf; dzdo chmod -R 755 /var/lib/nifi; dzdo chown -R nifi:apache-admin /var/lib/nifi;
           dzdo mkdir -p /opt/dtv; dzdo chmod -R 755 /opt/dtv; dzdo chown -R nifi:apache-admin /opt/dtv;
+          dzdo mkdir -p /etc/security/keytabs;
+          dzdo chmod -R 755 /etc/security/keytabs;
+          dzdo mkdir -p /var/log/nifi-logs;dzdo chmod -R 755 /var/log/nifi-logs;dzdo chown -R nifi:apache-admin /var/log/nifi-logs;
+          dzdo mkdir -p /opt/dtv;dzdo chmod -R 755 /opt/dtv;dzdo chown -R nifi:apache-admin /opt/dtv;
+          dzdo mkdir -p /opt/nifi/security/pki;dzdo chmod -R 755 /opt/nifi/security/pki;
+          dzdo chown -R nifi:apache-admin /opt/nifi/security/pki;
+          #Creating kerberos directory
+          echo "Make sure the Misc doc is ran before installing nifi  Kerberos directory"
+          dzdo chown -R root:apache-admin /opt/kerberos_Creationfiles;
+          echo "creating nifi dirs for provenance and other repositories";
+          dzdo chown -R nifi:apache-admin /opt/dtv/NiFi_etc_Dir;
+          dzdo mkdir -p /var/log/nifi-logs;dzdo chown -R nifi:apache-admin /var/log/nifi-logs;
+          dzdo mkdir -p /mnt1/prov_repo1;dzdo chown -R nifi:apache-admin /mnt1/prov_repo1;
+          dzdo mkdir -p /mnt2/cont_repo1;dzdo chown -R nifi:apache-admin /mnt2/cont_repo1;
+          dzdo mkdir -p /mnt2/cont_repo2;dzdo chown -R nifi:apache-admin /mnt2/cont_repo2;
+          dzdo mkdir -p /mnt2/cont_repo3;dzdo chown -R nifi:apache-admin /mnt2/cont_repo3;
+          dzdo mkdir -p /mnt2/cont_repo4;dzdo chown -R nifi:apache-admin /mnt2/cont_repo4;
+          dzdo chmod -R 755 /var/log/nifi-logs;
+          dzdo chmod -R 755 /mnt1/prov_repo1;
+          dzdo chmod -R 755 /mnt2/cont_repo1;
+          dzdo chmod -R 755 /mnt2/cont_repo2;
+          dzdo chmod -R 755 /mnt2/cont_repo3;
+          dzdo chmod -R 755 /mnt2/cont_repo4;
           echo "*********************END of userCreation function*********************";
       InstanceIds:
         - '{{ec2instanceidplaceholder}}'
@@ -117,9 +143,10 @@ mainSteps:
           if [[ ${?} -ne 0 ]];
           then
           echo -e "AWS copy Failed, Please check and make sure you have permission to copy. \n Server/Host should able to download it from the bucket you specified without keys"
-          exit 1;
           fi
           dzdo chown -R nifi:apache-admin {{BASENIFIHOMEPATH}};
+          echo "downloading etc dir for keytabs and other";
+          aws s3 cp {{s3nifimisccopy}} /opt/dtv/NiFi_etc_Dir/ --recursive  --no-progress --quiet;
           echo "*********************END of nf_s3Download function*********************";
       InstanceIds:
         - '{{ec2instanceidplaceholder}}'
@@ -138,13 +165,10 @@ mainSteps:
       Parameters:
         commands: |-
           echo "*********************Initiating createNFKeytabs*********************";
-          #Creating NiFi Keytab
-          echo "creating  NiFi keytabs"
-          dzdo mkdir -p /opt/kerberos_Creationfiles;
-          dzdo chown -R nifi:apache-admin;
-
           dzdo cd /opt/kerberos_Creationfiles;
+          echo "creating spengo keytab";
           (dzdo cd /opt/kerberos_Creationfiles ; dzdo sh /opt/kerberos_Creationfiles/bias-create-svc-user_headless.sh /etc/security/keytabs/nifi.keytab "nifi/@DS.DTVENG.NET";)
+          echo "creating spengo keytab";
           (dzdo cd /opt/kerberos_Creationfiles ; dzdo sh /opt/kerberos_Creationfiles/bias-create-svc-user.sh /etc/security/keytabs/nifi.service.keytab "nifi/${HOSTNAME}@DS.DTVENG.NET";)
           (dzdo cd /opt/kerberos_Creationfiles ; dzdo sh /opt/kerberos_Creationfiles/bias-create-svc-user.sh /etc/security/keytabs/spnego.service.keytab "HTTP/${HOSTNAME}@DS.DTVENG.NET";)
           # Permission for keytabs
@@ -168,19 +192,7 @@ mainSteps:
         - '{{ec2instanceidplaceholder}}'
       Parameters:
         commands: |-
-          echo "*********************Initiating fresh_installZK function*********************";
-          #Creating Required Directories
-          echo "creating Dirs"
-          dzdo mkdir -p /etc/security/keytabs;
-          dzdo chmod -R 755 /etc/security/keytabs;
-          dzdo mkdir -p /var/run/nifi;dzdo chmod -R 755 /var/run/nifi;dzdo chown -R nifi:apache-admin /var/run/nifi;
-          dzdo mkdir -p /var/log/nifi;dzdo chmod -R 755 /var/log/nifi;dzdo chown -R nifi:apache-admin /var/log/nifi;
-          dzdo mkdir -p /var/lib/nifi/conf;dzdo chmod -R 755 /var/lib/nifi;dzdo chown -R nifi:apache-admin /var/lib/nifi;
-          dzdo mkdir -p /opt/dtv;dzdo chmod -R 755 /opt/dtv;dzdo chown -R nifi:apache-admin /opt/dtv;
-          dzdo mkdir -p /opt/nifi/security/pki;dzdo chmod -R 755 /opt/nifi/security/pki;
-          dzdo chown -R nifi:apache-admin /opt/nifi/security/pki;
-          aws s3 cp {{s3nifimisccopy}} /opt/dtv/NiFi_etc_Dir/ --recursive  --no-progress --quiet;
-          dzdo chown -R nifi:apache-admin /opt/dtv/NiFi_etc_Dir;
+          echo "*********************Initiating fresh_installZK function*********************"; 
           # extracting the tar.gz file
           case {{NFDownloadFilename}} in
           (*.tar.gz*)
@@ -202,6 +214,9 @@ mainSteps:
           cd {{BASENIFIHOMEPATH}}/;
           dzdo mv {{BASENIFIHOMEPATH}}/${NIFIDownload_Dirname}/conf {{BASENIFIHOMEPATH}}/${NIFIDownload_Dirname}/bkpORG_conf_`date '+%m-%d-%Y_%N'`;
           dzdo aws s3 cp {{S3nfpathworkingABSPATH}}/conf {{BASENIFIHOMEPATH}}/${NIFIDownload_Dirname}/conf/ --recursive --quiet ;
+          echo "backup and copying nifi-env.sh file to local";
+          dzdo mv {{BASENIFIHOMEPATH}}/${NIFIDownload_Dirname}/bin/nifi-env.sh {{BASENIFIHOMEPATH}}/${NIFIDownload_Dirname}/bkpORG_`date '+%m-%d-%Y_%N'`;
+          dzdo aws s3 cp {{S3nfpathworkingABSPATH}}/bin/nifi-env.sh {{BASENIFIHOMEPATH}}/${NIFIDownload_Dirname}/bin/ --quiet ;
           dzdo chown -R nifi:apache-admin /opt/nifi;
           dzdo chmod -R 755 /opt/nifi;
           echo "installed nifi version is ${NIFIDownload_Dirname}";
@@ -224,7 +239,9 @@ mainSteps:
           tempfnzkstr=`echo ${temp1zkstr} | sed 's/.$//'`;
           sed -i "s/^nifi\.zookeeper\.connect\.string=.*$/nifi\.zookeeper\.connect\.string=${tempfnzkstr}/" {{BASENIFIHOMEPATH}}/${NIFIDownload_Dirname}/conf/nifi.properties;
           echo "updated zookeeper connection string in nifi.properties file";
-          sed -ir "s/<property\ name=\"Connect\ String\".*$/\<property\ name=\"Connect\ String\"\>${tempfnzkstr}\<\/property\>/" {{BASENIFIHOMEPATH}}/${NIFIDownload_Dirname}/conf/state-management.xml;
+          temp_nfwithnum=`echo "$NIFIDownload_Dirname" | sed "s/-/_/" | sed "s/\./_/g"`;
+          sed -i "s/<property\ name=\"Connect\ String\".*$/\<property\ name=\"Connect\ String\"\>${tempfnzkstr}\<\/property\>/" {{BASENIFIHOMEPATH}}/${NIFIDownload_Dirname}/conf/state-management.xml;
+          sed -i "s/<property\ name=\"Root\ Node\".*$/\<property\ name=\"Root\ Node\"\>\/${temp_nfwithnum}\<\/property\>/" {{BASENIFIHOMEPATH}}/${NIFIDownload_Dirname}/conf/state-management.xml;
           echo "updated state-management.xml file in nifi conf";
           echo "*********************update done for zk info in nifi conf dir*********************";
           echo "updated state-management.xml file in nifi conf";
@@ -261,7 +278,9 @@ mainSteps:
           dzdo mkdir -p {{BASENIFIHOMEPATH}}/security/pki;
           dzdo chmod -R 755 {{BASENIFIHOMEPATH}}/security/pki;
           echo "performing openssl to get subject info"
-          temp_certstr=`openssl x509 -in {{BASENIFIHOMEPATH}}/certs/temp/${HOSTNAME}.cer -text -noout | grep -i 'Subject:' | cut -d ':' -f 2 | sed "s/\ =\ /=/g"`;
+          temp_certstr1=`openssl x509 -in {{BASENIFIHOMEPATH}}/certs/temp/${HOSTNAME}.cer -text -noout | grep -i 'Subject:' | cut -d ':' -f 2 | sed "s/\ =\ /=/g"`;
+          temp_certstr2=`echo "$temp_certstr1" |sed  "s/O=/O=\"/"`;
+          temp_certstr=`echo "$temp_certstr2" | sed "s/, CN=/\", CN=/"`;
           echo "subject info temp_cert is $temp_certstr ";
           echo "openssl x509 -in {{BASENIFIHOMEPATH}}/certs/temp/${HOSTNAME}.cer";
           temp_noCN=`echo $temp_certstr | sed "s/CN=.*$/CN=/g"`;
@@ -277,14 +296,17 @@ mainSteps:
           sed -i "/^.<\/authorizer>$/i ${temp_val}" {{BASENIFIHOMEPATH}}/${NIFIDownload_Dirname}/conf/authorizers.xml;
           done;
           (cd {{BASENIFIHOMEPATH}}/${ZKDownload_Dirname}/;echo "current dir : `pwd`";)
+          temp_nfwithnum=`echo "$NIFIDownload_Dirname" | sed "s/-/_/" | sed "s/\./_/g"`;
+          sed -i "s/^nifi.zookeeper.root.node=.*$/nifi.zookeeper.root.node=\/${temp_nfwithnum}/g" {{BASENIFIHOMEPATH}}/${NIFIDownload_Dirname}/conf/nifi.properties
           echo "creating Symlink to currently installed nifi"
           unlink {{BASENIFIHOMEPATH}}/current_nifi;
           dzdo ln -s {{BASENIFIHOMEPATH}}/${NIFIDownload_Dirname} {{BASENIFIHOMEPATH}}/current_nifi;
           dzdo chown -R nifi:apache-admin {{BASENIFIHOMEPATH}}/current_nifi;
           echo "Copying varlibconf"
           aws s3 cp {{varlibconf}} /var/lib/nifi/conf/ --recursive;
-          (cd /var/lib/nifi/conf/; mv /var/lib/nifi/conf /var/lib/nifi/conf_`date '+%Y_%N'`;)
-          dzdo chown -R nifi:apache-admin /var/lib/nifi/;
+          (cd /var/lib/nifi/; dzdo mv /var/lib/nifi/conf /var/lib/nifi/bkpconf_`date '+%Y_%N'`; dzdo mkdir -p /var/lib/nifi/conf; dzdo chmod -R 755 /var/lib/nifi/conf;)
+          dzdo chown -R nifi:apache-admin /var/lib/nifi;
+          #echo "updating nifi prop for server number for max election and other things";
           echo "*********************END of fresh_installZK function*********************";
       OutputS3BucketName: '{{outputs3logbucket}}'
     description: fresh_installZK step for installing for first time on this server
@@ -343,6 +365,7 @@ mainSteps:
         commands: |-
           echo "*********************Initiating startNFService*********************";
           dzdo service nifi start;
+          dzdo netstat -plten | grep {{NIFIPORT}};
           if [[ ${?} -eq 0 ]];
           then
           echo "Started nifi";
@@ -352,16 +375,17 @@ mainSteps:
           fi
           dzdo chown -R nifi:apache-admin /var/run/nifi;
           dzdo chown -R nifi:apache-admin {{BASENIFIHOMEPATH}};
-          dzdo chown -R nifi:apache-admin /var/log/nifi;
+          dzdo chown -R nifi:apache-admin /var/log/nifi-logs;
           dzdo chown -R nifi:apache-admin /var/lib/nifi;
           dzdo chmod -R 755 /var/run/nifi;
-          dzdo chmod -R 755 /var/log/nifi;
+          dzdo chmod -R 755 /var/log/nifi-logs;
           dzdo chmod -R 755 /opt/nifi;
           dzdo chmod -R 755 /var/lib/nifi;
           echo "*********************End of startNFService*********************";
-    timeoutSeconds: 150
+    timeoutSeconds: 360
     nextStep: success_failure_MSG
     isCritical: false
+    maxAttempts: 3
   - name: success_failure_MSG
     action: 'aws:runCommand'
     inputs:
@@ -382,6 +406,6 @@ mainSteps:
           fi
           echo "*********************END of success_failure_MSG function*********************";
     description: ' Printing Success Message'
-    timeoutSeconds: 150
+    timeoutSeconds: 300
     isEnd: true
     isCritical: false

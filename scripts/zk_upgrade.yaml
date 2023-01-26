@@ -47,7 +47,7 @@ mainSteps:
           echo "zookeeper is stopped";
           else
           echo "*********************Initiating extractZK_pid function*********************"; 
-          ZK_PID_EXIST=`dzdo netstat -plten | grep ${ZK_PORT:=2181} | awk '{print $9}' | awk -F / '{print $1}'`;
+          ZK_PID_EXIST=`dzdo netstat -plten | grep {{ZKPORT}} | awk '{print $9}' | awk -F / '{print $1}'`;
           if [[ ! -z ${ZK_PID_EXIST} ]];
           then
           echo "Zookeeper is installed on this node";
